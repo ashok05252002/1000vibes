@@ -23,7 +23,8 @@ const generateInventory = (count) => {
       id: faker.string.uuid(),
       name: faker.commerce.productName(),
       category: faker.helpers.arrayElement(PRODUCT_CATEGORIES),
-      sku: faker.string.alphanumeric(8).toUpperCase(),
+      sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase(),
+      image: null, // Placeholder for image URL
       tags: faker.commerce.productAdjective() + ', ' + faker.commerce.productMaterial(),
       stock: faker.number.int({ min: 0, max: 150 }),
       inPrice: inPrice,
@@ -66,20 +67,58 @@ const generateVendors = (count) => {
   }));
 };
 
+// Generate items for bills/invoices
+const generateLineItems = (count) => {
+  return Array.from({ length: count }).map(() => {
+    const qty = faker.number.int({ min: 1, max: 10 });
+    const price = parseFloat(faker.finance.amount({ min: 100, max: 5000, dec: 2 }));
+    return {
+      id: faker.string.uuid(),
+      productId: faker.string.uuid(), // In real app, this matches a product ID
+      productName: faker.commerce.productName(),
+      qty: qty,
+      price: price,
+      total: qty * price
+    };
+  });
+};
+
 const generateInvoices = (count, customers) => {
   return Array.from({ length: count }).map(() => {
     const customer = faker.helpers.arrayElement(customers);
+    const items = generateLineItems(faker.number.int({ min: 1, max: 5 }));
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+    
     return {
       id: faker.string.uuid(),
       invoiceNo: 'INV-' + faker.string.numeric(5),
       date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
       customerId: customer?.id,
       customerName: customer?.name || 'Unknown',
-      amount: parseFloat(faker.finance.amount({ min: 500, max: 25000, dec: 2 })),
-      status: faker.helpers.arrayElement(['Paid', 'Pending', 'Overdue', 'Draft']),
-      items: [] // Simplified for initial generation
+      amount: totalAmount,
+      status: faker.helpers.arrayElement(['Paid', 'Pending', 'Overdue']),
+      items: items
     };
   });
+};
+
+const generateBills = (count, vendors) => {
+  return Array.from({ length: count }).map(() => {
+    const vendor = faker.helpers.arrayElement(vendors);
+    const items = generateLineItems(faker.number.int({ min: 2, max: 8 }));
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+
+    return {
+      id: faker.string.uuid(),
+      billNo: 'BILL-' + faker.string.numeric(5),
+      date: faker.date.recent({ days: 45 }).toLocaleDateString('en-IN'),
+      vendorId: vendor?.id,
+      vendorName: vendor?.company || 'Unknown Vendor',
+      amount: totalAmount,
+      status: faker.helpers.arrayElement(['Paid', 'Pending', 'Overdue']),
+      items: items
+    };
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 export const InventoryProvider = ({ children }) => {
@@ -88,8 +127,8 @@ export const InventoryProvider = ({ children }) => {
   const [customers, setCustomers] = useState(() => generateCustomers(10));
   const [vendors, setVendors] = useState(() => generateVendors(8));
   
-  // Initialize invoices dependent on customers
   const [invoices, setInvoices] = useState(() => generateInvoices(10, customers));
+  const [bills, setBills] = useState(() => generateBills(8, vendors));
   
   const [auditLogs, setAuditLogs] = useState([]);
 
@@ -151,6 +190,13 @@ export const InventoryProvider = ({ children }) => {
     logAction(id, 'Billing', 'Update', `Updated Invoice ${updatedInvoice.invoiceNo}`);
   };
 
+  // --- Actions: Bills (Vendors) ---
+  // Placeholder for adding bills if we implement Add Bill form later
+  const addBill = (bill) => {
+    setBills(prev => [bill, ...prev]);
+    logAction(bill.id, 'Billing', 'Create', `Created Vendor Bill ${bill.billNo}`);
+  };
+
   // --- Helper: Audit Logging ---
   const logAction = (entityId, module, action, details, user = 'Admin User') => {
     const newLog = {
@@ -174,6 +220,7 @@ export const InventoryProvider = ({ children }) => {
       customers, addCustomer,
       vendors, addVendor,
       invoices, addInvoice, updateInvoice,
+      bills, addBill,
       auditLogs
     }}>
       {children}

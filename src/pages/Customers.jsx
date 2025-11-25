@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { faker } from '@faker-js/faker';
-import { Plus, Search, Phone, Mail, MapPin, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Phone, Mail, MapPin, MoreHorizontal, FileText, ArrowRight } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -10,7 +11,8 @@ import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
 export const CustomersPage = () => {
-  const { customers, addCustomer } = useInventory();
+  const navigate = useNavigate();
+  const { customers, addCustomer, invoices } = useInventory();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,6 +32,11 @@ export const CustomersPage = () => {
     c.phone.includes(searchQuery) ||
     c.company?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Get history for selected customer
+  const customerHistory = selectedCustomer 
+    ? invoices.filter(inv => inv.customerId === selectedCustomer.id).sort((a, b) => new Date(b.date) - new Date(a.date))
+    : [];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -264,6 +271,53 @@ export const CustomersPage = () => {
                 <p className="text-sm text-text-secondary">Outstanding Balance</p>
                 <p className="text-2xl font-bold text-primary">{formatCurrency(selectedCustomer.balance)}</p>
               </div>
+            </div>
+
+            {/* Purchase History Table */}
+            <div>
+              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <FileText size={20} className="text-text-secondary" />
+                Purchase History
+              </h4>
+              
+              {customerHistory.length > 0 ? (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-xs text-text-secondary uppercase border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Invoice #</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {customerHistory.map((inv) => (
+                        <tr 
+                          key={inv.id} 
+                          className="hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => navigate(`/billing/customer/${inv.id}`)}
+                        >
+                          <td className="px-4 py-3 text-text-primary">{inv.date}</td>
+                          <td className="px-4 py-3 font-mono text-primary font-medium">{inv.invoiceNo}</td>
+                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(inv.amount)}</td>
+                          <td className="px-4 py-3 text-center">
+                            <Badge variant={inv.status === 'Paid' ? 'success' : 'warning'}>{inv.status}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right text-text-secondary">
+                            <ArrowRight size={16} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-border">
+                  <p className="text-text-secondary">No purchase history found.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

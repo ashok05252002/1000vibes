@@ -19,24 +19,26 @@ import {
   ChevronDown,
   ChevronRight,
   ShoppingCart,
-  FileText
+  FileText,
+  History
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: Receipt, label: 'Billing', path: '/billing' }, // Direct link to POS
+  { 
+    icon: History, 
+    label: 'Bills & History', 
+    path: '/history',
+    children: [
+      { label: 'Sales Invoices', path: '/history/sales', icon: FileText },
+      { label: 'Vendor Bills', path: '/history/purchases', icon: ShoppingCart }
+    ]
+  },
   { icon: Contact, label: 'Customers', path: '/customers' },
   { icon: Truck, label: 'Vendors', path: '/vendors' },
   { icon: Package, label: 'Inventory', path: '/inventory' },
-  { 
-    icon: Receipt, 
-    label: 'Billing', 
-    path: '/billing',
-    children: [
-      { label: 'Customer Invoices', path: '/billing/customer', icon: FileText },
-      { label: 'Vendor Bills', path: '/billing/vendor', icon: ShoppingCart }
-    ]
-  },
   { icon: CreditCard, label: 'Credits', path: '/credits' },
   { icon: PieChart, label: 'Expenses', path: '/expenses' },
   { icon: Clock, label: 'Daily Closing', path: '/closing' },
@@ -48,7 +50,7 @@ const menuItems = [
 
 export const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const [expandedMenus, setExpandedMenus] = useState(['/billing']); // Default expanded for visibility
+  const [expandedMenus, setExpandedMenus] = useState(['/history']);
 
   const toggleMenu = (path) => {
     setExpandedMenus(prev => 

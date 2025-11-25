@@ -15,6 +15,8 @@ import { CustomerBillingPage } from './pages/billing/CustomerBilling';
 import { AddInvoicePage } from './pages/billing/AddInvoice';
 import { InvoiceViewPage } from './pages/billing/InvoiceView';
 import { VendorBillingPage } from './pages/billing/VendorBilling';
+import { VendorBillViewPage } from './pages/billing/VendorBillView';
+import { BillingPOS } from './pages/billing/BillingPOS'; // New POS Page
 import { InventoryProvider } from './context/InventoryContext';
 
 const Placeholder = ({ title }) => (
@@ -47,13 +49,19 @@ function App() {
             <Route path="inventory/edit/:id" element={<EditProductPage />} />
             <Route path="inventory/:id" element={<ProductViewPage />} />
             
-            {/* Billing Routes */}
-            <Route path="billing" element={<Navigate to="/billing/customer" replace />} />
-            <Route path="billing/customer" element={<CustomerBillingPage />} />
-            <Route path="billing/customer/add" element={<AddInvoicePage />} />
+            {/* Billing (POS) Route */}
+            <Route path="billing" element={<BillingPOS />} />
+            
+            {/* History / Transactions Routes */}
+            <Route path="history" element={<Navigate to="/history/sales" replace />} />
+            <Route path="history/sales" element={<CustomerBillingPage />} />
+            <Route path="history/purchases" element={<VendorBillingPage />} />
+
+            {/* Detail Views (Kept accessible) */}
+            <Route path="billing/customer/add" element={<AddInvoicePage />} /> {/* Fallback/Legacy Add */}
             <Route path="billing/customer/edit/:id" element={<AddInvoicePage />} />
             <Route path="billing/customer/:id" element={<InvoiceViewPage />} />
-            <Route path="billing/vendor" element={<VendorBillingPage />} />
+            <Route path="billing/vendor/:id" element={<VendorBillViewPage />} />
             
             {/* Audit Logs */}
             <Route path="audit-logs" element={<AuditLogsPage />} />

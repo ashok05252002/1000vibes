@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, AlertCircle, UserCircle, Tag, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, UserCircle, Tag, CheckCircle, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Toggle } from '../components/ui/Toggle';
 import { Modal } from '../components/ui/Modal';
@@ -20,6 +20,7 @@ export const EditProductPage = () => {
   const [formData, setFormData] = useState({
     category: '',
     name: '',
+    sku: '',
     inPrice: '',
     vendorPrice: '',
     minVendorPrice: '',
@@ -30,6 +31,7 @@ export const EditProductPage = () => {
   });
   
   const [tags, setTags] = useState([]);
+  const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -40,6 +42,7 @@ export const EditProductPage = () => {
       setFormData({
         category: product.category,
         name: product.name,
+        sku: product.sku || '',
         inPrice: product.inPrice,
         vendorPrice: product.vendorPrice,
         minVendorPrice: product.minVendorPrice,
@@ -48,8 +51,8 @@ export const EditProductPage = () => {
         initialStock: product.stock,
         isActive: product.isActive
       });
-      // Parse tags string to array
       setTags(product.tags ? product.tags.split(', ').filter(t => t) : []);
+      setImagePreview(product.image || null);
       setIsLoading(false);
     } else {
       navigate('/inventory');
@@ -65,11 +68,20 @@ export const EditProductPage = () => {
     if (name === 'name' && errors.duplicate) setErrors(prev => ({ ...prev, duplicate: '' }));
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
     if (!formData.category) newErrors.category = 'Category is required';
     if (!formData.name.trim()) newErrors.name = 'Product Name is required';
+    if (!formData.sku.trim()) newErrors.sku = 'SKU is required';
     if (!formData.inPrice) newErrors.inPrice = 'Required';
     if (!formData.vendorPrice) newErrors.vendorPrice = 'Required';
     if (!formData.minVendorPrice) newErrors.minVendorPrice = 'Required';
@@ -103,7 +115,9 @@ export const EditProductPage = () => {
     const updatedFields = {
       name: formData.name,
       category: formData.category,
-      tags: tags.join(', '), // Convert array back to string
+      sku: formData.sku,
+      image: imagePreview,
+      tags: tags.join(', '),
       stock: parseInt(formData.initialStock),
       inPrice: parseFloat(formData.inPrice),
       vendorPrice: parseFloat(formData.vendorPrice),
@@ -120,7 +134,6 @@ export const EditProductPage = () => {
 
   if (isLoading) return <div>Loading...</div>;
 
-  // Calculations for Confirmation Modal
   const stockQty = parseInt(formData.initialStock) || 0;
   const purchasePrice = parseFloat(formData.inPrice) || 0;
   const totalValue = stockQty * purchasePrice;
@@ -138,7 +151,6 @@ export const EditProductPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-6">
-          {/* Status Toggle */}
           <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-md border border-border shadow-sm">
             <span className="text-sm font-medium text-text-primary">Status:</span>
             <Toggle 
@@ -183,65 +195,111 @@ export const EditProductPage = () => {
         <div className="mb-10">
           <h3 className="text-lg font-semibold text-text-primary mb-6">Basic Information</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Product Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.name ? 'border-red-500' : 'border-border'}`}
-              />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+            
+             {/* Image Upload Column */}
+             <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-text-primary mb-2">Product Image</label>
+              <div className="border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center justify-center min-h-[180px] bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover rounded-lg" />
+                ) : (
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-10 w-10 text-text-muted mb-2" />
+                    <p className="text-xs text-text-secondary">Click to upload</p>
+                  </div>
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+              </div>
+              {imagePreview && (
+                <button 
+                  type="button"
+                  onClick={() => setImagePreview(null)}
+                  className="text-xs text-red-500 mt-2 hover:underline w-full text-center"
+                >
+                  Remove Image
+                </button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.category ? 'border-red-500' : 'border-border'}`}
-              >
-                {PRODUCT_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+            <div className="md:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Product Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.name ? 'border-red-500' : 'border-border'}`}
+                />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Current Stock <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                name="initialStock"
-                value={formData.initialStock}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2.5 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-              />
-              <p className="text-xs text-text-secondary mt-1">Directly updating stock here will be logged.</p>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Product ID / SKU <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="sku"
+                  value={formData.sku}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.sku ? 'border-red-500' : 'border-border'}`}
+                />
+                {errors.sku && <p className="text-xs text-red-500 mt-1">{errors.sku}</p>}
+              </div>
 
-             {/* Search Tags Field */}
-             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Search Tags
-              </label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-3 text-text-secondary" size={16} />
-                <div className="pl-10">
-                  <TagInput 
-                    value={tags}
-                    onChange={setTags}
-                    placeholder="Type tag and press Enter..."
-                  />
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.category ? 'border-red-500' : 'border-border'}`}
+                >
+                  {PRODUCT_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Current Stock <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="initialStock"
+                  value={formData.initialStock}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full px-3 py-2.5 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
+                />
+                <p className="text-xs text-text-secondary mt-1">Directly updating stock here will be logged.</p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Search Tags
+                </label>
+                <div className="relative">
+                  <Tag className="absolute left-3 top-3 text-text-secondary" size={16} />
+                  <div className="pl-10">
+                    <TagInput 
+                      value={tags}
+                      onChange={setTags}
+                      placeholder="Type tag and press Enter..."
+                    />
+                  </div>
                 </div>
               </div>
             </div>

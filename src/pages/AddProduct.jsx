@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, AlertCircle, Tag, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Tag, CheckCircle, Upload, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { faker } from '@faker-js/faker';
 import { Button } from '../components/ui/Button';
 import { Toggle } from '../components/ui/Toggle';
@@ -17,6 +17,7 @@ export const AddProductPage = () => {
   const [formData, setFormData] = useState({
     category: '',
     name: '',
+    sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase(),
     inPrice: '',
     vendorPrice: '',
     minVendorPrice: '',
@@ -26,7 +27,8 @@ export const AddProductPage = () => {
     isActive: true
   });
   
-  const [tags, setTags] = useState([]); // Separate state for tags array
+  const [tags, setTags] = useState([]); 
+  const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -43,11 +45,27 @@ export const AddProductPage = () => {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
+    }
+  };
+
+  const generateSku = () => {
+    setFormData(prev => ({
+      ...prev,
+      sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase()
+    }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
     if (!formData.category) newErrors.category = 'Category is required';
     if (!formData.name.trim()) newErrors.name = 'Product Name is required';
+    if (!formData.sku.trim()) newErrors.sku = 'Product ID / SKU is required';
     if (!formData.inPrice) newErrors.inPrice = 'Required';
     if (!formData.vendorPrice) newErrors.vendorPrice = 'Required';
     if (!formData.minVendorPrice) newErrors.minVendorPrice = 'Required';
@@ -83,8 +101,9 @@ export const AddProductPage = () => {
       id: faker.string.uuid(),
       name: formData.name,
       category: formData.category,
-      sku: 'NEW-' + faker.string.alphanumeric(4).toUpperCase(),
-      tags: tags.join(', '), // Convert array back to string for storage
+      sku: formData.sku,
+      image: imagePreview, // Storing the object URL (note: this is temporary for session)
+      tags: tags.join(', '),
       stock: parseInt(formData.initialStock),
       inPrice: parseFloat(formData.inPrice),
       vendorPrice: parseFloat(formData.vendorPrice),
@@ -118,7 +137,6 @@ export const AddProductPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-6">
-          {/* Status Toggle in Header */}
           <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-md border border-border shadow-sm">
             <span className="text-sm font-medium text-text-primary">Status:</span>
             <Toggle 
@@ -135,7 +153,6 @@ export const AddProductPage = () => {
         </div>
       </div>
 
-      {/* Global Error Message */}
       {errors.duplicate && (
         <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-3 text-red-700 animate-in fade-in slide-in-from-top-2">
           <AlertCircle size={20} />
@@ -143,79 +160,136 @@ export const AddProductPage = () => {
         </div>
       )}
 
-      {/* Clean Form Layout */}
       <form className="bg-white rounded-lg border border-border p-8 shadow-sm">
         
         {/* Section: Basic Info */}
         <div className="mb-10">
           <h3 className="text-lg font-semibold text-text-primary mb-6">Basic Information</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Product Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.name ? 'border-red-500' : 'border-border'}`}
-                placeholder="e.g. Wireless Bluetooth Headphones"
-              />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.category ? 'border-red-500' : 'border-border'}`}
-              >
-                <option value="">Select Category</option>
-                {PRODUCT_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-              {errors.category && <p className="text-xs text-red-500 mt-1">{errors.category}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Initial Stock <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                name="initialStock"
-                value={formData.initialStock}
-                onChange={handleInputChange}
-                min="0"
-                className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.initialStock ? 'border-red-500' : 'border-border'}`}
-                placeholder="0"
-              />
-              {errors.initialStock && <p className="text-xs text-red-500 mt-1">{errors.initialStock}</p>}
-            </div>
-
-            {/* Search Tags Field */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-text-primary mb-1">
-                Search Tags
-              </label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-3 text-text-secondary" size={16} />
-                <div className="pl-10">
-                  <TagInput 
-                    value={tags}
-                    onChange={setTags}
-                    placeholder="Type tag and press Enter..."
-                  />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+            
+            {/* Image Upload Column */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-text-primary mb-2">Product Image</label>
+              <div className="border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center justify-center min-h-[180px] bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover rounded-lg" />
+                ) : (
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-10 w-10 text-text-muted mb-2" />
+                    <p className="text-xs text-text-secondary">Click to upload</p>
+                  </div>
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
               </div>
-              <p className="text-xs text-text-secondary mt-1">Press Enter to add a tag.</p>
+              {imagePreview && (
+                <button 
+                  type="button"
+                  onClick={() => setImagePreview(null)}
+                  className="text-xs text-red-500 mt-2 hover:underline w-full text-center"
+                >
+                  Remove Image
+                </button>
+              )}
+            </div>
+
+            {/* Fields Column */}
+            <div className="md:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Product Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.name ? 'border-red-500' : 'border-border'}`}
+                  placeholder="e.g. Wireless Bluetooth Headphones"
+                />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Product ID / SKU <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.sku ? 'border-red-500' : 'border-border'}`}
+                  />
+                  <button 
+                    type="button"
+                    onClick={generateSku}
+                    className="p-2 border border-border rounded-md hover:bg-gray-50 text-text-secondary"
+                    title="Generate Random SKU"
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                </div>
+                {errors.sku && <p className="text-xs text-red-500 mt-1">{errors.sku}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.category ? 'border-red-500' : 'border-border'}`}
+                >
+                  <option value="">Select Category</option>
+                  {PRODUCT_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                {errors.category && <p className="text-xs text-red-500 mt-1">{errors.category}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Initial Stock <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="initialStock"
+                  value={formData.initialStock}
+                  onChange={handleInputChange}
+                  min="0"
+                  className={`w-full px-3 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow ${errors.initialStock ? 'border-red-500' : 'border-border'}`}
+                  placeholder="0"
+                />
+                {errors.initialStock && <p className="text-xs text-red-500 mt-1">{errors.initialStock}</p>}
+              </div>
+
+              {/* Search Tags Field */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-text-primary mb-1">
+                  Search Tags
+                </label>
+                <div className="relative">
+                  <Tag className="absolute left-3 top-3 text-text-secondary" size={16} />
+                  <div className="pl-10">
+                    <TagInput 
+                      value={tags}
+                      onChange={setTags}
+                      placeholder="Type tag and press Enter..."
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-text-secondary mt-1">Press Enter to add a tag.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -345,6 +419,10 @@ export const AddProductPage = () => {
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg border border-border space-y-3">
+            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+              <span className="text-text-secondary text-sm">SKU</span>
+              <span className="font-mono text-text-primary">{formData.sku}</span>
+            </div>
             <div className="flex justify-between items-center border-b border-gray-200 pb-2">
               <span className="text-text-secondary text-sm">Purchase Price (In)</span>
               <span className="font-semibold text-text-primary">{formatCurrency(purchasePrice)}</span>

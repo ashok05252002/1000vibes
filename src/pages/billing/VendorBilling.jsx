@@ -1,27 +1,21 @@
 import React, { useState } from 'react';
-import { faker } from '@faker-js/faker';
-import { Plus, Search, ShoppingCart, Filter, Download, Eye, MoreHorizontal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Download, Eye, MoreHorizontal } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { formatCurrency } from '../../lib/utils';
-
-// Dummy Data
-const generateBills = (count) => {
-  return Array.from({ length: count }).map(() => ({
-    id: faker.string.uuid(),
-    billNo: 'BILL-' + faker.string.numeric(5),
-    date: faker.date.recent({ days: 45 }).toLocaleDateString('en-IN'),
-    vendor: faker.company.name(),
-    amount: parseFloat(faker.finance.amount({ min: 2000, max: 80000, dec: 2 })),
-    status: faker.helpers.arrayElement(['Paid', 'Pending', 'Overdue']),
-    items: faker.number.int({ min: 5, max: 20 })
-  })).sort((a, b) => new Date(b.date) - new Date(a.date));
-};
+import { useInventory } from '../../context/InventoryContext';
 
 export const VendorBillingPage = () => {
-  const [bills] = useState(() => generateBills(8));
+  const navigate = useNavigate();
+  const { bills } = useInventory();
   const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredBills = bills.filter(bill => 
+    bill.billNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    bill.vendorName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -75,8 +69,12 @@ export const VendorBillingPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {bills.map((bill) => (
-                <tr key={bill.id} className="hover:bg-gray-50 transition-colors">
+              {filteredBills.map((bill) => (
+                <tr 
+                  key={bill.id} 
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/billing/vendor/${bill.id}`)}
+                >
                   <td className="px-6 py-4 text-text-primary whitespace-nowrap">
                     {bill.date}
                   </td>
@@ -84,7 +82,7 @@ export const VendorBillingPage = () => {
                     {bill.billNo}
                   </td>
                   <td className="px-6 py-4 font-medium text-text-primary">
-                    {bill.vendor}
+                    {bill.vendorName}
                   </td>
                   <td className="px-6 py-4 text-right font-medium">
                     {formatCurrency(bill.amount)}
@@ -100,8 +98,12 @@ export const VendorBillingPage = () => {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" title="View">
+                    <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                      <button 
+                        className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" 
+                        title="View"
+                        onClick={() => navigate(`/billing/vendor/${bill.id}`)}
+                      >
                         <Eye size={16} />
                       </button>
                       <button className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" title="Download">
