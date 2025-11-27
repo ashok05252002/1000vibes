@@ -11,16 +11,16 @@ export default {
       },
       colors: {
         primary: {
-          DEFAULT: '#1A73E8', // Zoho blue variant
-          hover: '#1557B0',
-          light: '#E8F0FE',
+          DEFAULT: '#D32F2F', // New Red Theme
+          hover: '#B71C1C',   // Darker Red for hover
+          light: '#FFEBEE',   // Light Red for backgrounds
         },
         surface: {
           DEFAULT: '#F9F9F9',
           white: '#FFFFFF',
         },
         accent: {
-          DEFAULT: '#E74C3C', // Alerts
+          DEFAULT: '#E74C3C', // Alerts (kept similar but distinct enough)
           light: '#FADBD8',
         },
         text: {

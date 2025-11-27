@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -10,6 +10,7 @@ import { useInventory } from '../../context/InventoryContext';
 export const VendorBillViewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { bills, vendors } = useInventory();
 
   const bill = bills.find(b => b.id === id);
@@ -17,12 +18,20 @@ export const VendorBillViewPage = () => {
 
   if (!bill) return <div>Bill not found</div>;
 
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else {
+      navigate('/billing/vendor');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-10">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="secondary" size="icon" onClick={() => navigate('/billing/vendor')}>
+          <Button variant="secondary" size="icon" onClick={handleBack}>
             <ArrowLeft size={20} />
           </Button>
           <h1 className="text-2xl font-bold text-text-primary">Vendor Bill {bill.billNo}</h1>

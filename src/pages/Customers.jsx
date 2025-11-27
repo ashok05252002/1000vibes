@@ -1,42 +1,44 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { faker } from '@faker-js/faker';
-import { Plus, Search, Phone, Mail, MapPin, MoreHorizontal, FileText, ArrowRight } from 'lucide-react';
+import { Plus, Search, Phone, Mail, MapPin, MoreHorizontal } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { SlideOver } from '../components/ui/SlideOver';
+import { Pagination } from '../components/ui/Pagination';
 import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
 export const CustomersPage = () => {
   const navigate = useNavigate();
-  const { customers, addCustomer, invoices } = useInventory();
+  const { customers, addCustomer } = useInventory();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   // Form State
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    area: '',
-    email: '',
-    company: ''
+    name: '', phone: '', area: '', email: '', company: ''
   });
   const [errors, setErrors] = useState({});
 
+  // Filtering
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.phone.includes(searchQuery) ||
     c.company?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Get history for selected customer
-  const customerHistory = selectedCustomer 
-    ? invoices.filter(inv => inv.customerId === selectedCustomer.id).sort((a, b) => new Date(b.date) - new Date(a.date))
-    : [];
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const paginatedCustomers = filteredCustomers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -88,7 +90,7 @@ export const CustomersPage = () => {
               type="text" 
               placeholder="Search customers..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-64"
             />
           </div>
@@ -96,7 +98,7 @@ export const CustomersPage = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
@@ -110,11 +112,11 @@ export const CustomersPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredCustomers.map((customer) => (
+              {paginatedCustomers.map((customer) => (
                 <tr 
                   key={customer.id} 
                   className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                  onClick={() => setSelectedCustomer(customer)}
+                  onClick={() => navigate(`/customers/${customer.id}`)}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -160,8 +162,17 @@ export const CustomersPage = () => {
             </tbody>
           </table>
         </div>
+        
+        <Pagination 
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredCustomers.length}
+          itemsPerPage={itemsPerPage}
+        />
       </Card>
 
+      {/* Add Customer Modal */}
       <Modal 
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)}
@@ -177,7 +188,7 @@ export const CustomersPage = () => {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${errors.name ? 'border-red-500' : 'border-border'}`}
+              className={`w-full px-3 py-2 border rounded-md text-sm ${errors.name ? 'border-red-500' : 'border-border'}`}
               placeholder="Enter full name"
             />
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
@@ -193,7 +204,7 @@ export const CustomersPage = () => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${errors.phone ? 'border-red-500' : 'border-border'}`}
+                className={`w-full px-3 py-2 border rounded-md text-sm ${errors.phone ? 'border-red-500' : 'border-border'}`}
                 placeholder="+91 98765 43210"
               />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
@@ -207,7 +218,7 @@ export const CustomersPage = () => {
                 name="area"
                 value={formData.area}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${errors.area ? 'border-red-500' : 'border-border'}`}
+                className={`w-full px-3 py-2 border rounded-md text-sm ${errors.area ? 'border-red-500' : 'border-border'}`}
                 placeholder="e.g. Anna Nagar"
               />
               {errors.area && <p className="text-xs text-red-500 mt-1">{errors.area}</p>}
@@ -222,7 +233,7 @@ export const CustomersPage = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm"
                 placeholder="john@example.com"
               />
             </div>
@@ -233,7 +244,7 @@ export const CustomersPage = () => {
                 name="company"
                 value={formData.company}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm"
                 placeholder="Company Name"
               />
             </div>
@@ -245,83 +256,6 @@ export const CustomersPage = () => {
           </div>
         </form>
       </Modal>
-
-      <SlideOver
-        isOpen={!!selectedCustomer}
-        onClose={() => setSelectedCustomer(null)}
-        title="Customer Details"
-      >
-        {selectedCustomer && (
-          <div className="space-y-8">
-            <div className="flex items-start justify-between">
-              <div className="flex gap-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">
-                  {selectedCustomer.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-text-primary">{selectedCustomer.name}</h3>
-                  <p className="text-text-secondary">{selectedCustomer.company}</p>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
-                    <span className="flex items-center gap-1"><Phone size={14} /> {selectedCustomer.phone}</span>
-                    <span className="flex items-center gap-1"><MapPin size={14} /> {selectedCustomer.city}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-text-secondary">Outstanding Balance</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(selectedCustomer.balance)}</p>
-              </div>
-            </div>
-
-            {/* Purchase History Table */}
-            <div>
-              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-                <FileText size={20} className="text-text-secondary" />
-                Purchase History
-              </h4>
-              
-              {customerHistory.length > 0 ? (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-50 text-xs text-text-secondary uppercase border-b border-border">
-                      <tr>
-                        <th className="px-4 py-3">Date</th>
-                        <th className="px-4 py-3">Invoice #</th>
-                        <th className="px-4 py-3 text-right">Amount</th>
-                        <th className="px-4 py-3 text-center">Status</th>
-                        <th className="px-4 py-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {customerHistory.map((inv) => (
-                        <tr 
-                          key={inv.id} 
-                          className="hover:bg-gray-50 cursor-pointer transition-colors"
-                          onClick={() => navigate(`/billing/customer/${inv.id}`)}
-                        >
-                          <td className="px-4 py-3 text-text-primary">{inv.date}</td>
-                          <td className="px-4 py-3 font-mono text-primary font-medium">{inv.invoiceNo}</td>
-                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(inv.amount)}</td>
-                          <td className="px-4 py-3 text-center">
-                            <Badge variant={inv.status === 'Paid' ? 'success' : 'warning'}>{inv.status}</Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right text-text-secondary">
-                            <ArrowRight size={16} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-border">
-                  <p className="text-text-secondary">No purchase history found.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </SlideOver>
     </div>
   );
 };

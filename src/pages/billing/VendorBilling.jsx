@@ -4,6 +4,7 @@ import { Plus, Search, Download, Eye, MoreHorizontal } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Pagination } from '../../components/ui/Pagination';
 import { formatCurrency } from '../../lib/utils';
 import { useInventory } from '../../context/InventoryContext';
 
@@ -11,10 +12,21 @@ export const VendorBillingPage = () => {
   const navigate = useNavigate();
   const { bills } = useInventory();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const filteredBills = bills.filter(bill => 
     bill.billNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
     bill.vendorName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+  const paginatedBills = filteredBills.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   return (
@@ -31,7 +43,7 @@ export const VendorBillingPage = () => {
               type="text" 
               placeholder="Search bills..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-64"
             />
           </div>
@@ -55,7 +67,7 @@ export const VendorBillingPage = () => {
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
@@ -69,7 +81,7 @@ export const VendorBillingPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredBills.map((bill) => (
+              {paginatedBills.map((bill) => (
                 <tr 
                   key={bill.id} 
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -109,9 +121,6 @@ export const VendorBillingPage = () => {
                       <button className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" title="Download">
                         <Download size={16} />
                       </button>
-                      <button className="p-1.5 text-text-secondary hover:bg-gray-100 rounded-md">
-                        <MoreHorizontal size={16} />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -119,6 +128,13 @@ export const VendorBillingPage = () => {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredBills.length}
+          itemsPerPage={itemsPerPage}
+        />
       </Card>
     </div>
   );

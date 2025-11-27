@@ -5,7 +5,9 @@ import { Dashboard } from './pages/Dashboard';
 import { UsersPage } from './pages/Users';
 import { MastersPage } from './pages/Masters';
 import { CustomersPage } from './pages/Customers';
+import { CustomerDetailsPage } from './pages/CustomerDetails'; 
 import { VendorsPage } from './pages/Vendors';
+import { VendorDetailsPage } from './pages/VendorDetails'; 
 import { InventoryPage } from './pages/Inventory';
 import { AddProductPage } from './pages/AddProduct';
 import { EditProductPage } from './pages/EditProduct';
@@ -16,20 +18,12 @@ import { AddInvoicePage } from './pages/billing/AddInvoice';
 import { InvoiceViewPage } from './pages/billing/InvoiceView';
 import { VendorBillingPage } from './pages/billing/VendorBilling';
 import { VendorBillViewPage } from './pages/billing/VendorBillView';
-import { BillingPOS } from './pages/billing/BillingPOS'; // New POS Page
+import { BillingPOS } from './pages/billing/BillingPOS';
+import { CreditsPage } from './pages/Credits'; 
+import { ExpensesPage } from './pages/Expenses';
+import { DailyClosingPage } from './pages/DailyClosing';
+import { ReportsPage } from './pages/Reports'; // Updated Import
 import { InventoryProvider } from './context/InventoryContext';
-
-const Placeholder = ({ title }) => (
-  <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-      <span className="text-2xl">🚧</span>
-    </div>
-    <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
-    <p className="text-text-secondary mt-2 max-w-md">
-      This module is part of the full Inventory System but not included in this UI demo.
-    </p>
-  </div>
-);
 
 function App() {
   return (
@@ -40,8 +34,14 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="masters" element={<MastersPage />} />
+            
+            {/* Customer Routes */}
             <Route path="customers" element={<CustomersPage />} />
+            <Route path="customers/:id" element={<CustomerDetailsPage />} />
+            
+            {/* Vendor Routes */}
             <Route path="vendors" element={<VendorsPage />} />
+            <Route path="vendors/:id" element={<VendorDetailsPage />} />
             
             {/* Inventory Routes */}
             <Route path="inventory" element={<InventoryPage />} />
@@ -57,8 +57,8 @@ function App() {
             <Route path="history/sales" element={<CustomerBillingPage />} />
             <Route path="history/purchases" element={<VendorBillingPage />} />
 
-            {/* Detail Views (Kept accessible) */}
-            <Route path="billing/customer/add" element={<AddInvoicePage />} /> {/* Fallback/Legacy Add */}
+            {/* Detail Views */}
+            <Route path="billing/customer/add" element={<AddInvoicePage />} />
             <Route path="billing/customer/edit/:id" element={<AddInvoicePage />} />
             <Route path="billing/customer/:id" element={<InvoiceViewPage />} />
             <Route path="billing/vendor/:id" element={<VendorBillViewPage />} />
@@ -66,10 +66,17 @@ function App() {
             {/* Audit Logs */}
             <Route path="audit-logs" element={<AuditLogsPage />} />
             
-            <Route path="credits" element={<Placeholder title="Credit Management" />} />
-            <Route path="expenses" element={<Placeholder title="Expense Tracking" />} />
-            <Route path="closing" element={<Placeholder title="Daily Closing (EOD)" />} />
-            <Route path="reports" element={<Placeholder title="Reports & Analytics" />} />
+            {/* Credits */}
+            <Route path="credits" element={<CreditsPage />} />
+            
+            {/* Expenses */}
+            <Route path="expenses" element={<ExpensesPage />} />
+            
+            {/* Daily Closing */}
+            <Route path="closing" element={<DailyClosingPage />} />
+            
+            {/* Reports */}
+            <Route path="reports" element={<ReportsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -81,12 +81,14 @@ export const Sidebar = ({ isOpen, onClose }) => {
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="h-16 flex items-center justify-between px-6 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center text-white font-bold text-lg">
-              Z
-            </div>
-            <span className="font-bold text-xl text-text-primary">ZohoInv</span>
+        <div className="h-20 flex items-center justify-between px-6 border-b border-border shrink-0">
+          <div className="flex items-center gap-3">
+            <img 
+              src="https://instagram.fmaa14-1.fna.fbcdn.net/v/t51.2885-19/500219006_18001998884783983_3438514892580265006_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=instagram.fmaa14-1.fna.fbcdn.net&_nc_cat=107&_nc_oc=Q6cZ2QEfOpbU9ZMKU5TI4Sqc1sH2jDuMNtcv0zK4nPpvUU87zfdsVmfUFJPBHJjO8WOvxkw&_nc_ohc=kuQoul11oXsQ7kNvwH5oVil&_nc_gid=S_R4300eyON5nCMx_JDBLA&edm=ALGbJPMBAAAA&ccb=7-5&oh=00_AfjV91XR_y-RLWj9Krw_qlLv1V_QP97XPGq4VBOuC88fww&oe=692B5125&_nc_sid=7d3ac5" 
+              alt="Logo" 
+              className="w-10 h-10 rounded-full object-cover border border-border"
+            />
+            {/* Removed "ZohoInv" text as requested */}
           </div>
           <button onClick={onClose} className="lg:hidden text-text-secondary">
             <X size={20} />

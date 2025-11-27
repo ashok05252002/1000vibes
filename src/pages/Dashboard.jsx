@@ -70,8 +70,8 @@ export const Dashboard = () => {
         name: 'Sales',
         type: 'bar',
         barWidth: '60%',
-        data: [12000, 19000, 15000, 28000, 22000, 31000, 25000], // Increased values to look realistic in INR
-        itemStyle: { color: '#1A73E8', borderRadius: [4, 4, 0, 0] }
+        data: [12000, 19000, 15000, 28000, 22000, 31000, 25000], 
+        itemStyle: { color: '#D32F2F', borderRadius: [4, 4, 0, 0] } // Updated to Red
       }
     ]
   };

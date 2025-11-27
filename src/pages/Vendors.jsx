@@ -1,30 +1,28 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { faker } from '@faker-js/faker';
-import { Plus, Search, Phone, Building2, MoreHorizontal, MapPin, Mail, User, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Plus, Search, Phone, Building2, MoreHorizontal } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { SlideOver } from '../components/ui/SlideOver';
+import { Pagination } from '../components/ui/Pagination';
 import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
 export const VendorsPage = () => {
   const navigate = useNavigate();
-  const { vendors, addVendor, bills } = useInventory();
+  const { vendors, addVendor } = useInventory();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Form State
   const [formData, setFormData] = useState({
-    shopName: '',
-    address: '',
-    contactPerson: '',
-    phone: '',
-    email: '',
-    gstin: ''
+    shopName: '', address: '', contactPerson: '', phone: '', email: '', gstin: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -33,10 +31,12 @@ export const VendorsPage = () => {
     v.contactPerson.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Get history for selected vendor
-  const vendorHistory = selectedVendor 
-    ? bills.filter(b => b.vendorId === selectedVendor.id).sort((a, b) => new Date(b.date) - new Date(a.date))
-    : [];
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredVendors.length / itemsPerPage);
+  const paginatedVendors = filteredVendors.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -89,7 +89,7 @@ export const VendorsPage = () => {
               type="text" 
               placeholder="Search vendors..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-64"
             />
           </div>
@@ -97,7 +97,7 @@ export const VendorsPage = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
@@ -111,11 +111,11 @@ export const VendorsPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredVendors.map((vendor) => (
+              {paginatedVendors.map((vendor) => (
                 <tr 
                   key={vendor.id} 
                   className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                  onClick={() => setSelectedVendor(vendor)}
+                  onClick={() => navigate(`/vendors/${vendor.id}`)}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -146,6 +146,13 @@ export const VendorsPage = () => {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredVendors.length}
+          itemsPerPage={itemsPerPage}
+        />
       </Card>
 
       <Modal 
@@ -181,79 +188,6 @@ export const VendorsPage = () => {
           </div>
         </form>
       </Modal>
-
-      <SlideOver isOpen={!!selectedVendor} onClose={() => setSelectedVendor(null)} title="Vendor Details">
-        {selectedVendor && (
-          <div className="space-y-8">
-            <div className="flex items-start justify-between">
-              <div className="flex gap-4">
-                <div className="w-16 h-16 rounded-md bg-orange-50 flex items-center justify-center text-2xl font-bold text-orange-600 border border-orange-100">
-                  <Building2 size={32} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-text-primary">{selectedVendor.company}</h3>
-                  <div className="flex items-center gap-2 text-sm text-text-secondary mt-1"><User size={14} /> {selectedVendor.contactPerson}</div>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
-                    <span className="flex items-center gap-1"><Phone size={14} /> {selectedVendor.phone}</span>
-                    <span className="flex items-center gap-1"><Mail size={14} /> {selectedVendor.email}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-text-secondary">Total Payables</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(selectedVendor.balance)}</p>
-              </div>
-            </div>
-
-            {/* Bill History Table */}
-            <div>
-              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-                <ShoppingCart size={20} className="text-text-secondary" />
-                Purchase Orders / Bills
-              </h4>
-              
-              {vendorHistory.length > 0 ? (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-50 text-xs text-text-secondary uppercase border-b border-border">
-                      <tr>
-                        <th className="px-4 py-3">Date</th>
-                        <th className="px-4 py-3">Bill #</th>
-                        <th className="px-4 py-3 text-right">Amount</th>
-                        <th className="px-4 py-3 text-center">Status</th>
-                        <th className="px-4 py-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {vendorHistory.map((bill) => (
-                        <tr 
-                          key={bill.id} 
-                          className="hover:bg-gray-50 cursor-pointer transition-colors"
-                          onClick={() => navigate(`/billing/vendor/${bill.id}`)}
-                        >
-                          <td className="px-4 py-3 text-text-primary">{bill.date}</td>
-                          <td className="px-4 py-3 font-mono text-primary font-medium">{bill.billNo}</td>
-                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(bill.amount)}</td>
-                          <td className="px-4 py-3 text-center">
-                            <Badge variant={bill.status === 'Paid' ? 'success' : 'warning'}>{bill.status}</Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right text-text-secondary">
-                            <ArrowRight size={16} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-border">
-                  <p className="text-text-secondary">No bills found for this vendor.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </SlideOver>
     </div>
   );
 };

@@ -12,6 +12,30 @@ export const PRODUCT_CATEGORIES = [
   'Storage Devices'
 ];
 
+export const EXPENSE_CATEGORIES = [
+  'Rent',
+  'Electricity',
+  'Salaries',
+  'Office Supplies',
+  'Travel',
+  'Maintenance',
+  'Internet',
+  'Refreshments',
+  'Miscellaneous'
+];
+
+export const PERMISSIONS_LIST = [
+  { id: 'inventory_view', label: 'View Inventory' },
+  { id: 'inventory_manage', label: 'Manage Inventory (Add/Edit)' },
+  { id: 'billing_access', label: 'Access Billing (POS)' },
+  { id: 'customers_manage', label: 'Manage Customers' },
+  { id: 'vendors_manage', label: 'Manage Vendors' },
+  { id: 'expenses_manage', label: 'Manage Expenses' },
+  { id: 'reports_view', label: 'View Reports' },
+  { id: 'users_manage', label: 'Manage Users & Roles' },
+  { id: 'settings_access', label: 'System Settings' }
+];
+
 // --- Initial Data Generators ---
 
 const generateInventory = (count) => {
@@ -24,7 +48,7 @@ const generateInventory = (count) => {
       name: faker.commerce.productName(),
       category: faker.helpers.arrayElement(PRODUCT_CATEGORIES),
       sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase(),
-      image: null, // Placeholder for image URL
+      image: null, 
       tags: faker.commerce.productAdjective() + ', ' + faker.commerce.productMaterial(),
       stock: faker.number.int({ min: 0, max: 150 }),
       inPrice: inPrice,
@@ -47,7 +71,7 @@ const generateCustomers = (count) => {
     phone: faker.phone.number('+91 9#### #####'),
     city: faker.location.city(),
     balance: parseFloat(faker.finance.amount({ min: 0, max: 50000, dec: 2 })),
-    status: 'Active',
+    status: faker.helpers.arrayElement(['Active', 'Active', 'Active', 'Inactive']),
     history: [] 
   }));
 };
@@ -67,14 +91,13 @@ const generateVendors = (count) => {
   }));
 };
 
-// Generate items for bills/invoices
 const generateLineItems = (count) => {
   return Array.from({ length: count }).map(() => {
     const qty = faker.number.int({ min: 1, max: 10 });
     const price = parseFloat(faker.finance.amount({ min: 100, max: 5000, dec: 2 }));
     return {
       id: faker.string.uuid(),
-      productId: faker.string.uuid(), // In real app, this matches a product ID
+      productId: faker.string.uuid(), 
       productName: faker.commerce.productName(),
       qty: qty,
       price: price,
@@ -84,22 +107,29 @@ const generateLineItems = (count) => {
 };
 
 const generateInvoices = (count, customers) => {
-  return Array.from({ length: count }).map(() => {
+  const today = new Date().toISOString().split('T')[0];
+  
+  return Array.from({ length: count }).map((_, index) => {
     const customer = faker.helpers.arrayElement(customers);
     const items = generateLineItems(faker.number.int({ min: 1, max: 5 }));
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+    const status = faker.helpers.arrayElement(['Paid', 'Paid', 'Pending', 'Overdue']);
+    
+    // Force some invoices to be "Today" for Daily Closing data
+    const date = index < 5 ? today : faker.date.recent({ days: 60 }).toISOString().split('T')[0];
     
     return {
       id: faker.string.uuid(),
       invoiceNo: 'INV-' + faker.string.numeric(5),
-      date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
+      date: date,
       customerId: customer?.id,
       customerName: customer?.name || 'Unknown',
       amount: totalAmount,
-      status: faker.helpers.arrayElement(['Paid', 'Pending', 'Overdue']),
+      status: status,
+      paymentMode: status === 'Paid' ? faker.helpers.arrayElement(['Cash', 'UPI', 'Card', 'Cash']) : null,
       items: items
     };
-  });
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 const generateBills = (count, vendors) => {
@@ -111,7 +141,7 @@ const generateBills = (count, vendors) => {
     return {
       id: faker.string.uuid(),
       billNo: 'BILL-' + faker.string.numeric(5),
-      date: faker.date.recent({ days: 45 }).toLocaleDateString('en-IN'),
+      date: faker.date.recent({ days: 60 }).toLocaleDateString('en-IN'),
       vendorId: vendor?.id,
       vendorName: vendor?.company || 'Unknown Vendor',
       amount: totalAmount,
@@ -121,26 +151,194 @@ const generateBills = (count, vendors) => {
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
+const generateExpenses = (count) => {
+  const today = new Date().toISOString().split('T')[0];
+
+  return Array.from({ length: count }).map((_, index) => {
+    // Force some expenses to be "Today"
+    const date = index < 3 ? today : faker.date.recent({ days: 90 }).toISOString().split('T')[0];
+
+    return {
+      id: faker.string.uuid(),
+      date: date,
+      category: faker.helpers.arrayElement(EXPENSE_CATEGORIES),
+      amount: parseFloat(faker.finance.amount({ min: 100, max: 15000, dec: 2 })),
+      description: faker.lorem.sentence(3),
+      paymentMode: faker.helpers.arrayElement(['Cash', 'UPI', 'Bank Transfer', 'Card']),
+      recordedBy: 'Admin User'
+    };
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
+const generateRoles = () => [
+  { id: 'role-admin', name: 'Super Admin', permissions: PERMISSIONS_LIST.map(p => p.id), isSystem: true },
+  { id: 'role-manager', name: 'Store Manager', permissions: ['inventory_view', 'inventory_manage', 'billing_access', 'reports_view', 'customers_manage', 'vendors_manage', 'expenses_manage'], isSystem: false },
+  { id: 'role-staff', name: 'Billing Staff', permissions: ['inventory_view', 'billing_access', 'customers_manage'], isSystem: false },
+];
+
+const generateUsers = (roles) => {
+  return Array.from({ length: 5 }).map(() => {
+    const role = faker.helpers.arrayElement(roles);
+    return {
+      id: faker.string.uuid(),
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      roleId: role.id,
+      roleName: role.name,
+      status: faker.helpers.arrayElement(['Active', 'Active', 'Inactive']),
+      lastLogin: faker.date.recent().toLocaleDateString()
+    };
+  });
+};
+
+// Generate initial stock movements for history
+const generateStockMovements = (products) => {
+    let movements = [];
+    products.forEach(p => {
+        // Initial Stock
+        movements.push({
+            id: faker.string.uuid(),
+            productId: p.id,
+            date: faker.date.past().toISOString().split('T')[0],
+            type: 'Opening Stock',
+            qty: p.stock + 10, // Assuming some were sold
+            reason: 'Initial Setup',
+            user: 'System'
+        });
+    });
+    return movements;
+};
+
 export const InventoryProvider = ({ children }) => {
   // --- State ---
-  const [products, setProducts] = useState(() => generateInventory(12));
-  const [customers, setCustomers] = useState(() => generateCustomers(10));
-  const [vendors, setVendors] = useState(() => generateVendors(8));
+  const [roles, setRoles] = useState(() => generateRoles());
+  const [products, setProducts] = useState(() => generateInventory(60));
+  const [customers, setCustomers] = useState(() => generateCustomers(45));
+  const [vendors, setVendors] = useState(() => generateVendors(25));
+  const [users, setUsers] = useState(() => generateUsers(roles)); 
   
-  const [invoices, setInvoices] = useState(() => generateInvoices(10, customers));
-  const [bills, setBills] = useState(() => generateBills(8, vendors));
+  const [invoices, setInvoices] = useState(() => generateInvoices(120, customers));
+  const [bills, setBills] = useState(() => generateBills(50, vendors));
+  const [expenses, setExpenses] = useState(() => generateExpenses(40));
+  
+  // New: Stock Movements History
+  const [stockMovements, setStockMovements] = useState(() => generateStockMovements(products));
+
+  const [dailyClosings, setDailyClosings] = useState(() => {
+    return Array.from({ length: 5 }).map((_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (i + 1));
+      return {
+        id: faker.string.uuid(),
+        date: date.toISOString().split('T')[0],
+        openingBalance: 2000,
+        cashSales: 15000,
+        onlineSales: 5000,
+        cashExpenses: 1000,
+        expectedCash: 16000,
+        actualCash: 16000,
+        discrepancy: 0,
+        notes: 'Closed on time',
+        closedBy: 'Admin User'
+      };
+    });
+  });
   
   const [auditLogs, setAuditLogs] = useState([]);
+
+  // --- Helper: Audit Logging ---
+  const logAction = (entityId, module, action, details, user = 'Admin User', changes = []) => {
+    const newLog = {
+      id: faker.string.uuid(),
+      timestamp: new Date().toISOString(),
+      user,
+      module,
+      action,
+      details,
+      entityId,
+      changes,
+      ip: '127.0.0.1' 
+    };
+    setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  // --- Actions: Roles & Users ---
+  const addRole = (role) => {
+    setRoles(prev => [...prev, role]);
+    logAction(role.id, 'Roles', 'Create', `Created new role: ${role.name}`);
+  };
+
+  const addUser = (user) => {
+    setUsers(prev => [user, ...prev]);
+    logAction(user.id, 'Users', 'Create', `Created new user: ${user.name}`);
+  };
 
   // --- Actions: Products ---
   const addProduct = (product) => {
     setProducts((prev) => [product, ...prev]);
+    // Log opening stock
+    setStockMovements(prev => [{
+        id: faker.string.uuid(),
+        productId: product.id,
+        date: new Date().toISOString().split('T')[0],
+        type: 'Opening Stock',
+        qty: product.stock,
+        reason: 'New Product Added',
+        user: 'Admin User'
+    }, ...prev]);
     logAction(product.id, 'Product', 'Create', `Created product ${product.name}`);
   };
 
   const updateProduct = (id, updatedFields, user = 'Admin User') => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields, lastUpdated: new Date().toLocaleDateString('en-IN') } : p));
-    logAction(id, 'Product', 'Update', `Updated product details`, user);
+    
+    const product = products.find(p => p.id === id);
+    const changes = [];
+    Object.keys(updatedFields).forEach(key => {
+      if (product[key] !== updatedFields[key]) {
+        changes.push({ field: key, oldValue: product[key], newValue: updatedFields[key] });
+      }
+    });
+
+    // If stock is manually updated in edit screen
+    if (updatedFields.stock !== undefined && updatedFields.stock !== product.stock) {
+        const diff = updatedFields.stock - product.stock;
+        setStockMovements(prev => [{
+            id: faker.string.uuid(),
+            productId: id,
+            date: new Date().toISOString().split('T')[0],
+            type: diff > 0 ? 'Manual Adjustment (In)' : 'Manual Adjustment (Out)',
+            qty: Math.abs(diff),
+            reason: 'Stock updated via Edit Screen',
+            user: user
+        }, ...prev]);
+    }
+
+    logAction(id, 'Product', 'Update', `Updated product details`, user, changes);
+  };
+
+  // --- New: Adjust Stock (Damage/Loss) ---
+  const adjustStock = (productId, qty, type, notes, user = 'Admin User') => {
+    // Update Product Stock
+    setProducts(prev => prev.map(p => {
+        if (p.id === productId) {
+            return { ...p, stock: p.stock - qty }; // Assuming damage reduces stock
+        }
+        return p;
+    }));
+
+    // Add Movement Log
+    setStockMovements(prev => [{
+        id: faker.string.uuid(),
+        productId,
+        date: new Date().toISOString().split('T')[0],
+        type: type, // Damage, Loss, etc.
+        qty: qty,
+        reason: notes,
+        user
+    }, ...prev]);
+
+    logAction(productId, 'Inventory', 'Adjustment', `Stock adjusted: ${type} - ${qty} units`, user);
   };
 
   const checkDuplicateName = (name, excludeId = null) => {
@@ -154,6 +352,24 @@ export const InventoryProvider = ({ children }) => {
     return customer;
   };
 
+  // --- New: Record Customer Payment ---
+  const recordPayment = (customerId, amount, mode, notes) => {
+    setCustomers(prev => prev.map(c => {
+      if (c.id === customerId) {
+        return { ...c, balance: Math.max(0, c.balance - amount) };
+      }
+      return c;
+    }));
+
+    // Log as a transaction (Optional: Add to a 'transactions' state if we had one, for now we log audit)
+    logAction(customerId, 'Credits', 'Payment', `Received payment of ₹${amount} via ${mode}. Notes: ${notes}`);
+    
+    // Add to invoices list as a "Payment Receipt" for tracking in P&L? 
+    // Or just keep it separate. For P&L cash flow, it's money in.
+    // Let's create a pseudo-invoice for record keeping if needed, or just rely on balance update.
+    // For simplicity in this demo, we just update balance.
+  };
+
   // --- Actions: Vendors ---
   const addVendor = (vendor) => {
     setVendors(prev => [vendor, ...prev]);
@@ -164,7 +380,6 @@ export const InventoryProvider = ({ children }) => {
   const addInvoice = (invoice) => {
     setInvoices(prev => [invoice, ...prev]);
     
-    // Update Customer Balance
     setCustomers(prev => prev.map(c => {
       if (c.id === invoice.customerId && invoice.status !== 'Paid') {
         return { ...c, balance: c.balance + invoice.amount };
@@ -172,7 +387,7 @@ export const InventoryProvider = ({ children }) => {
       return c;
     }));
 
-    // Deduct Stock
+    // Deduct Stock & Log Movement
     invoice.items.forEach(item => {
       setProducts(prev => prev.map(p => {
         if (p.id === item.productId) {
@@ -180,6 +395,16 @@ export const InventoryProvider = ({ children }) => {
         }
         return p;
       }));
+      
+      setStockMovements(prev => [{
+          id: faker.string.uuid(),
+          productId: item.productId,
+          date: invoice.date,
+          type: 'Sale',
+          qty: item.qty,
+          reason: `Invoice #${invoice.invoiceNo}`,
+          user: 'System'
+      }, ...prev]);
     });
 
     logAction(invoice.id, 'Billing', 'Create', `Created Invoice ${invoice.invoiceNo}`);
@@ -191,36 +416,45 @@ export const InventoryProvider = ({ children }) => {
   };
 
   // --- Actions: Bills (Vendors) ---
-  // Placeholder for adding bills if we implement Add Bill form later
   const addBill = (bill) => {
     setBills(prev => [bill, ...prev]);
+    
+    // Add Stock & Log Movement
+    bill.items.forEach(item => {
+        // Note: In a real app we would match item.productName to a productId or create new
+        // For this demo, we assume bill items might not map directly to inventory unless selected
+        // If we had productId in bill items, we would increase stock here.
+    });
+
     logAction(bill.id, 'Billing', 'Create', `Created Vendor Bill ${bill.billNo}`);
   };
 
-  // --- Helper: Audit Logging ---
-  const logAction = (entityId, module, action, details, user = 'Admin User') => {
-    const newLog = {
-      id: faker.string.uuid(),
-      timestamp: new Date().toISOString(),
-      user,
-      module,
-      action,
-      details,
-      entityId,
-      ip: '127.0.0.1' // Mock IP
-    };
-    setAuditLogs(prev => [newLog, ...prev]);
+  // --- Actions: Expenses ---
+  const addExpense = (expense) => {
+    setExpenses(prev => [expense, ...prev]);
+    logAction(expense.id, 'Expenses', 'Create', `Added expense: ${expense.category} - ₹${expense.amount}`);
+  };
+
+  // --- Actions: Daily Closing ---
+  const addDailyClosing = (closingData) => {
+    setDailyClosings(prev => [closingData, ...prev]);
+    logAction(closingData.id, 'Closing', 'Create', `Performed Daily Closing for ${closingData.date}`);
   };
 
   const getProductLogs = (productId) => auditLogs.filter(l => l.entityId === productId);
+  const getProductHistory = (productId) => stockMovements.filter(m => m.productId === productId).sort((a,b) => new Date(b.date) - new Date(a.date));
 
   return (
     <InventoryContext.Provider value={{ 
-      products, addProduct, updateProduct, checkDuplicateName, getProductLogs,
-      customers, addCustomer,
+      roles, addRole,
+      users, addUser,
+      products, addProduct, updateProduct, checkDuplicateName, getProductLogs, adjustStock, getProductHistory,
+      customers, addCustomer, recordPayment,
       vendors, addVendor,
       invoices, addInvoice, updateInvoice,
       bills, addBill,
+      expenses, addExpense,
+      dailyClosings, addDailyClosing,
       auditLogs
     }}>
       {children}

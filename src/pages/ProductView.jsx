@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, Calendar, FileText, Truck, User, History, ClipboardList, AlertTriangle } from 'lucide-react';
-import { faker } from '@faker-js/faker';
+import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, Calendar, FileText, Truck, User, History, ClipboardList, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -10,48 +9,44 @@ import { Modal } from '../components/ui/Modal';
 import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
-// Helper to generate dummy history (Stock/Sales)
-const generateHistory = (productId) => {
-  const stockIn = Array.from({ length: 5 }).map(() => ({
-    id: faker.string.alphanumeric(6).toUpperCase(),
-    date: faker.date.past().toLocaleDateString('en-IN'),
-    type: faker.helpers.arrayElement(['Purchase', 'Opening Stock', 'Return In']),
-    qty: faker.number.int({ min: 10, max: 50 }),
-    ref: faker.helpers.arrayElement(['PO-2024-001', 'PO-2024-045', 'Manual Adj']),
-    supplier: faker.company.name(),
-    cost: parseFloat(faker.finance.amount({ min: 100, max: 5000, dec: 2 }))
-  })).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const sales = Array.from({ length: 8 }).map(() => ({
-    id: faker.string.alphanumeric(8).toUpperCase(),
-    date: faker.date.recent({ days: 30 }).toLocaleDateString('en-IN'),
-    invoiceNo: 'INV-' + faker.string.numeric(4),
-    customer: faker.person.fullName(),
-    qty: faker.number.int({ min: 1, max: 5 }),
-    price: parseFloat(faker.finance.amount({ min: 150, max: 6000, dec: 2 })),
-    status: faker.helpers.arrayElement(['Paid', 'Pending'])
-  })).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return { stockIn, sales };
-};
-
 export const ProductViewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products, getProductLogs, updateProduct } = useInventory();
+  const { products, getProductLogs, updateProduct, adjustStock, getProductHistory, invoices } = useInventory();
   
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'sales', 'audit'
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
+
+  // Damage Form State
+  const [damageForm, setDamageForm] = useState({
+    type: 'Damage',
+    qty: '',
+    notes: ''
+  });
 
   // Find product
   const product = products.find(p => p.id === id);
   
-  // Generate mock history data on first render
-  const history = useMemo(() => generateHistory(id), [id]);
-  
-  // Get Audit Logs from Context
+  // Get Real History
+  const stockHistory = getProductHistory(id);
   const auditLogs = getProductLogs(id);
+  
+  // Filter Sales History for this product
+  const salesHistory = invoices.flatMap(inv => 
+    inv.items
+      .filter(item => item.productId === id)
+      .map(item => ({
+        id: inv.id,
+        date: inv.date,
+        invoiceNo: inv.invoiceNo,
+        customer: inv.customerName,
+        qty: item.qty,
+        price: item.price,
+        status: inv.status
+      }))
+  ).sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (!product) {
     return (
@@ -75,8 +70,17 @@ export const ProductViewPage = () => {
     setPendingStatus(null);
   };
 
+  const handleDamageSubmit = (e) => {
+    e.preventDefault();
+    if (!damageForm.qty || parseInt(damageForm.qty) <= 0) return;
+    
+    adjustStock(id, parseInt(damageForm.qty), damageForm.type, damageForm.notes);
+    setIsDamageModalOpen(false);
+    setDamageForm({ type: 'Damage', qty: '', notes: '' });
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10">
       {/* Header Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -102,6 +106,7 @@ export const ProductViewPage = () => {
               onChange={handleStatusToggle}
             />
           </div>
+          <Button icon={AlertOctagon} variant="danger" onClick={() => setIsDamageModalOpen(true)}>Report Damage</Button>
           <Button icon={Edit2} variant="secondary" onClick={() => navigate(`/inventory/edit/${id}`)}>Edit Product</Button>
         </div>
       </div>
@@ -126,9 +131,9 @@ export const ProductViewPage = () => {
         <Card className="bg-green-50 border-green-100">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-green-800">Total Sold (30 Days)</p>
+              <p className="text-sm font-medium text-green-800">Total Sold</p>
               <h3 className="text-2xl font-bold text-green-900 mt-1">
-                {history.sales.reduce((acc, curr) => acc + curr.qty, 0)} <span className="text-sm font-normal text-green-700">units</span>
+                {salesHistory.reduce((acc, curr) => acc + curr.qty, 0)} <span className="text-sm font-normal text-green-700">units</span>
               </h3>
             </div>
             <div className="p-2 bg-white rounded-md text-green-600">
@@ -136,7 +141,7 @@ export const ProductViewPage = () => {
             </div>
           </div>
           <div className="mt-3 text-xs text-green-700">
-            Revenue: {formatCurrency(history.sales.reduce((acc, curr) => acc + (curr.qty * curr.price), 0))}
+            Revenue: {formatCurrency(salesHistory.reduce((acc, curr) => acc + (curr.qty * curr.price), 0))}
           </div>
         </Card>
 
@@ -171,7 +176,7 @@ export const ProductViewPage = () => {
               }`}
             >
               <Package size={16} />
-              Stock In History
+              Stock Movement
             </button>
             <button
               onClick={() => setActiveTab('sales')}
@@ -205,44 +210,44 @@ export const ProductViewPage = () => {
                 <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
                   <tr>
                     <th className="px-6 py-3">Date</th>
-                    <th className="px-6 py-3">Transaction Type</th>
-                    <th className="px-6 py-3">Reference / Supplier</th>
-                    <th className="px-6 py-3 text-right">Qty Added</th>
-                    <th className="px-6 py-3 text-right">Unit Cost</th>
-                    <th className="px-6 py-3 text-right">Total Value</th>
+                    <th className="px-6 py-3">Type</th>
+                    <th className="px-6 py-3">Reason / Ref</th>
+                    <th className="px-6 py-3 text-right">Quantity</th>
+                    <th className="px-6 py-3">User</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {history.stockIn.map((item) => (
+                  {stockHistory.length > 0 ? stockHistory.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-text-primary flex items-center gap-2">
                         <Calendar size={14} className="text-text-secondary" />
                         {item.date}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                        <Badge variant={
+                            item.type === 'Damage' || item.type === 'Loss' ? 'danger' :
+                            item.type === 'Sale' ? 'warning' : 'success'
+                        }>
                           {item.type}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-text-primary">{item.ref}</span>
-                          <span className="text-xs text-text-secondary flex items-center gap-1">
-                            <Truck size={10} /> {item.supplier}
-                          </span>
-                        </div>
+                      <td className="px-6 py-4 text-text-secondary">
+                        {item.reason}
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-green-600">
-                        +{item.qty}
+                      <td className={`px-6 py-4 text-right font-bold ${
+                          ['Damage', 'Loss', 'Sale', 'Manual Adjustment (Out)'].includes(item.type) ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                         {['Damage', 'Loss', 'Sale', 'Manual Adjustment (Out)'].includes(item.type) ? '-' : '+'}{item.qty}
                       </td>
-                      <td className="px-6 py-4 text-right text-text-secondary">
-                        {formatCurrency(item.cost)}
-                      </td>
-                      <td className="px-6 py-4 text-right font-medium text-text-primary">
-                        {formatCurrency(item.qty * item.cost)}
+                      <td className="px-6 py-4 text-text-secondary text-xs">
+                        {item.user}
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                        <td colSpan="5" className="px-6 py-8 text-center text-text-secondary">No stock movement history yet.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -263,7 +268,7 @@ export const ProductViewPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {history.sales.map((item) => (
+                  {salesHistory.length > 0 ? salesHistory.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-text-primary flex items-center gap-2">
                         <Calendar size={14} className="text-text-secondary" />
@@ -293,7 +298,11 @@ export const ProductViewPage = () => {
                         </Badge>
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                        <td colSpan="7" className="px-6 py-8 text-center text-text-secondary">No sales history yet.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -333,13 +342,15 @@ export const ProductViewPage = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="space-y-1">
-                            {log.changes.map((change, idx) => (
+                            {log.changes && log.changes.length > 0 ? log.changes.map((change, idx) => (
                               <div key={idx} className="text-xs">
                                 <span className="font-medium text-text-secondary uppercase">{change.field}: </span>
                                 <span className="text-red-500 line-through mr-2">{String(change.oldValue)}</span>
                                 <span className="text-green-600 font-bold">{String(change.newValue)}</span>
                               </div>
-                            ))}
+                            )) : (
+                                <span className="text-xs text-text-secondary">{log.details}</span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -398,6 +409,62 @@ export const ProductViewPage = () => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Damage Reporting Modal */}
+      <Modal
+        isOpen={isDamageModalOpen}
+        onClose={() => setIsDamageModalOpen(false)}
+        title="Report Damage / Stock Adjustment"
+      >
+        <form onSubmit={handleDamageSubmit} className="space-y-4">
+            <div className="bg-red-50 p-3 rounded-md border border-red-100 flex gap-2 text-red-800 text-sm mb-2">
+                <AlertOctagon size={18} className="shrink-0 mt-0.5" />
+                <p>This action will reduce the stock count immediately and log a permanent entry in the stock history.</p>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">Adjustment Type</label>
+                <select 
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                    value={damageForm.type}
+                    onChange={e => setDamageForm({...damageForm, type: e.target.value})}
+                >
+                    <option value="Damage">Damage (Broken/Defective)</option>
+                    <option value="Loss">Loss / Theft</option>
+                    <option value="Internal Use">Internal Use / Sample</option>
+                    <option value="Correction">Inventory Correction (Count Mismatch)</option>
+                    <option value="Expired">Expired Goods</option>
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">Quantity to Remove</label>
+                <input 
+                    type="number"
+                    min="1"
+                    max={product.stock}
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                    value={damageForm.qty}
+                    onChange={e => setDamageForm({...damageForm, qty: e.target.value})}
+                    required
+                />
+                <p className="text-xs text-text-secondary mt-1">Current Stock: {product.stock}</p>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">Notes / Reason</label>
+                <textarea 
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                    rows={3}
+                    value={damageForm.notes}
+                    onChange={e => setDamageForm({...damageForm, notes: e.target.value})}
+                    placeholder="Describe the damage or reason for adjustment..."
+                    required
+                />
+            </div>
+            <div className="pt-4 flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => setIsDamageModalOpen(false)}>Cancel</Button>
+                <Button type="submit" variant="danger">Confirm Adjustment</Button>
+            </div>
+        </form>
       </Modal>
     </div>
   );

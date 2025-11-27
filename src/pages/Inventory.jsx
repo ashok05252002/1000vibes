@@ -4,6 +4,7 @@ import { Plus, Search, Package, Edit2, Eye, Filter } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Pagination } from '../components/ui/Pagination';
 import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
@@ -11,14 +12,18 @@ export const InventoryPage = () => {
   const navigate = useNavigate();
   const { products } = useInventory();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [statusFilter, setStatusFilter] = useState('all'); 
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Filter products by Search Query and Status
+  // Filter products
   const filteredProducts = products.filter(p => {
     const matchesSearch = 
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.tags && p.tags.toLowerCase().includes(searchQuery.toLowerCase())); // Search in tags
+      (p.tags && p.tags.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesStatus = 
       statusFilter === 'all' ? true :
@@ -27,6 +32,18 @@ export const InventoryPage = () => {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1); // Reset to page 1 on search
+  };
 
   return (
     <div className="space-y-6">
@@ -43,7 +60,7 @@ export const InventoryPage = () => {
               type="text" 
               placeholder="Search products or tags..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearch}
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-64"
             />
           </div>
@@ -53,8 +70,8 @@ export const InventoryPage = () => {
             <Filter size={16} className="text-text-secondary mr-2" />
             <select 
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-sm border-none focus:ring-0 py-2 text-text-primary bg-transparent cursor-pointer"
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              className="text-sm border-none focus:ring-0 py-2 text-text-primary bg-transparent cursor-pointer outline-none"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -67,7 +84,7 @@ export const InventoryPage = () => {
       </div>
 
       {/* Inventory Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
@@ -82,7 +99,7 @@ export const InventoryPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <tr 
                   key={product.id} 
                   className="hover:bg-gray-50 transition-colors cursor-pointer group"
@@ -146,6 +163,13 @@ export const InventoryPage = () => {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredProducts.length}
+          itemsPerPage={itemsPerPage}
+        />
       </Card>
     </div>
   );

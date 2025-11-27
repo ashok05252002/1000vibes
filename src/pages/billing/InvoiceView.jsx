@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Edit2, Printer, Download, Mail } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -10,6 +10,7 @@ import { useInventory } from '../../context/InventoryContext';
 export const InvoiceViewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { invoices, customers } = useInventory();
 
   const invoice = invoices.find(i => i.id === id);
@@ -17,12 +18,22 @@ export const InvoiceViewPage = () => {
 
   if (!invoice) return <div>Invoice not found</div>;
 
+  const handleBack = () => {
+    // Check if we have a specific "from" state (e.g. from Customer Details)
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else {
+      // Default fallback
+      navigate('/billing/customer');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-10">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="secondary" size="icon" onClick={() => navigate('/billing/customer')}>
+          <Button variant="secondary" size="icon" onClick={handleBack}>
             <ArrowLeft size={20} />
           </Button>
           <h1 className="text-2xl font-bold text-text-primary">Invoice {invoice.invoiceNo}</h1>
@@ -38,10 +49,14 @@ export const InvoiceViewPage = () => {
         {/* Invoice Header */}
         <div className="flex justify-between items-start border-b border-border pb-8 mb-8">
           <div>
-            <div className="w-10 h-10 bg-primary rounded-md flex items-center justify-center text-white font-bold text-xl mb-4">
-              Z
+            <div className="mb-4">
+              <img 
+                src="https://instagram.fmaa14-1.fna.fbcdn.net/v/t51.2885-19/500219006_18001998884783983_3438514892580265006_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=instagram.fmaa14-1.fna.fbcdn.net&_nc_cat=107&_nc_oc=Q6cZ2QEfOpbU9ZMKU5TI4Sqc1sH2jDuMNtcv0zK4nPpvUU87zfdsVmfUFJPBHJjO8WOvxkw&_nc_ohc=kuQoul11oXsQ7kNvwH5oVil&_nc_gid=S_R4300eyON5nCMx_JDBLA&edm=ALGbJPMBAAAA&ccb=7-5&oh=00_AfjV91XR_y-RLWj9Krw_qlLv1V_QP97XPGq4VBOuC88fww&oe=692B5125&_nc_sid=7d3ac5" 
+                alt="Logo" 
+                className="w-16 h-16 rounded-full object-cover border border-border"
+              />
             </div>
-            <h2 className="font-bold text-xl text-text-primary">ZohoInv Store</h2>
+            <h2 className="font-bold text-xl text-text-primary">Store Admin</h2>
             <p className="text-text-secondary text-sm mt-1">
               123, Main Street, Anna Nagar<br />
               Chennai, Tamil Nadu - 600040<br />
@@ -81,9 +96,7 @@ export const InvoiceViewPage = () => {
               invoice.items.map((item, idx) => (
                 <tr key={idx}>
                   <td className="py-4 px-4 text-sm text-text-primary font-medium">
-                    {/* In a real app, we'd lookup product name if only ID is stored, 
-                        but assuming we store snapshot or lookup here */}
-                    Product ID: {item.productId} 
+                    {item.productName || `Product ID: ${item.productId}`} 
                   </td>
                   <td className="py-4 px-4 text-sm text-text-primary text-right">{item.qty}</td>
                   <td className="py-4 px-4 text-sm text-text-primary text-right">{formatCurrency(item.price)}</td>
