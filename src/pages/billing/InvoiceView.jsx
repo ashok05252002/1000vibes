@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Edit2, Printer, Download, Mail } from 'lucide-react';
+import { ArrowLeft, Edit2, Printer, Download, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -19,14 +19,16 @@ export const InvoiceViewPage = () => {
   if (!invoice) return <div>Invoice not found</div>;
 
   const handleBack = () => {
-    // Check if we have a specific "from" state (e.g. from Customer Details)
     if (location.state?.from) {
       navigate(location.state.from);
     } else {
-      // Default fallback
       navigate('/billing/customer');
     }
   };
+
+  // Calculate amounts if not present (backward compatibility)
+  const paidAmount = invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.status === 'Paid' ? invoice.amount : 0);
+  const dueAmount = invoice.dueAmount !== undefined ? invoice.dueAmount : (invoice.amount - paidAmount);
 
   return (
     <div className="max-w-4xl mx-auto pb-10">
@@ -37,15 +39,17 @@ export const InvoiceViewPage = () => {
             <ArrowLeft size={20} />
           </Button>
           <h1 className="text-2xl font-bold text-text-primary">Invoice {invoice.invoiceNo}</h1>
-          <Badge variant={invoice.status === 'Paid' ? 'success' : 'warning'}>{invoice.status}</Badge>
+          <Badge variant={invoice.status === 'Paid' ? 'success' : invoice.status === 'Partial' ? 'warning' : 'danger'}>
+            {invoice.status}
+          </Badge>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" icon={Printer}>Print</Button>
+          <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
           <Button icon={Edit2} onClick={() => navigate(`/billing/customer/edit/${id}`)}>Edit</Button>
         </div>
       </div>
 
-      <Card className="p-8">
+      <Card className="p-8 print:shadow-none print:border-none" id="invoice-content">
         {/* Invoice Header */}
         <div className="flex justify-between items-start border-b border-border pb-8 mb-8">
           <div>
@@ -67,6 +71,7 @@ export const InvoiceViewPage = () => {
             <h2 className="text-3xl font-bold text-text-primary mb-2">INVOICE</h2>
             <p className="text-text-secondary"># {invoice.invoiceNo}</p>
             <p className="text-text-secondary">Date: {invoice.date}</p>
+            {invoice.paymentMode && <p className="text-text-secondary">Mode: {invoice.paymentMode}</p>}
           </div>
         </div>
 
@@ -93,16 +98,32 @@ export const InvoiceViewPage = () => {
           </thead>
           <tbody className="divide-y divide-border">
             {invoice.items && invoice.items.length > 0 ? (
-              invoice.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td className="py-4 px-4 text-sm text-text-primary font-medium">
-                    {item.productName || `Product ID: ${item.productId}`} 
-                  </td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right">{item.qty}</td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right">{formatCurrency(item.price)}</td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right font-medium">{formatCurrency(item.total)}</td>
-                </tr>
-              ))
+              invoice.items.map((item, idx) => {
+                const standardPrice = item.standardPrice || item.price;
+                const hasDiscount = item.price < standardPrice;
+                const discountAmount = standardPrice - item.price;
+                
+                return (
+                  <tr key={idx}>
+                    <td className="py-4 px-4 text-sm text-text-primary">
+                      <div className="font-medium">{item.productName || `Product ID: ${item.productId}`}</div>
+                      {hasDiscount && (
+                        <div className="text-xs text-green-600 mt-0.5">
+                          Discount Applied: {formatCurrency(discountAmount)} per unit
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-primary text-right">{item.qty}</td>
+                    <td className="py-4 px-4 text-sm text-right">
+                      <div className="text-text-primary">{formatCurrency(item.price)}</div>
+                      {hasDiscount && (
+                        <div className="text-xs text-text-secondary line-through">{formatCurrency(standardPrice)}</div>
+                      )}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-primary text-right font-medium">{formatCurrency(item.total)}</td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan="4" className="py-8 text-center text-text-secondary italic">
@@ -115,7 +136,7 @@ export const InvoiceViewPage = () => {
 
         {/* Totals */}
         <div className="flex justify-end">
-          <div className="w-64 space-y-3">
+          <div className="w-72 space-y-3">
             <div className="flex justify-between text-sm text-text-secondary">
               <span>Subtotal</span>
               <span>{formatCurrency(invoice.amount)}</span>
@@ -124,10 +145,25 @@ export const InvoiceViewPage = () => {
               <span>Tax (0%)</span>
               <span>₹0.00</span>
             </div>
-            <div className="border-t border-border pt-3 flex justify-between text-lg font-bold text-text-primary">
-              <span>Total</span>
+            
+            <div className="border-t border-border my-2"></div>
+            
+            <div className="flex justify-between text-base font-bold text-text-primary">
+              <span>Total Amount</span>
               <span>{formatCurrency(invoice.amount)}</span>
             </div>
+
+            <div className="flex justify-between text-sm text-green-700">
+              <span className="flex items-center gap-1"><CheckCircle size={12}/> Paid Amount</span>
+              <span>{formatCurrency(paidAmount)}</span>
+            </div>
+
+            {dueAmount > 0 && (
+              <div className="flex justify-between text-base font-bold text-red-600 bg-red-50 p-2 rounded-md border border-red-100">
+                <span className="flex items-center gap-1"><AlertCircle size={16}/> Balance Due</span>
+                <span>{formatCurrency(dueAmount)}</span>
+              </div>
+            )}
           </div>
         </div>
       </Card>

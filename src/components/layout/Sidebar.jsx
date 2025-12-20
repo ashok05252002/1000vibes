@@ -20,7 +20,10 @@ import {
   ChevronRight,
   ShoppingCart,
   FileText,
-  History
+  History,
+  List,
+  ArrowDownRight,
+  Plus
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -38,7 +41,17 @@ const menuItems = [
   },
   { icon: Contact, label: 'Customers', path: '/customers' },
   { icon: Truck, label: 'Vendors', path: '/vendors' },
-  { icon: Package, label: 'Inventory', path: '/inventory' },
+  // Updated Inventory Menu
+  { 
+    icon: Package, 
+    label: 'Inventory', 
+    path: '/inventory',
+    children: [
+      { label: 'Product List', path: '/inventory', icon: List },
+      { label: 'Stock In', path: '/inventory/stock-in', icon: ArrowDownRight },
+      { label: 'Add Product', path: '/inventory/add', icon: Plus }
+    ]
+  },
   { icon: CreditCard, label: 'Credits', path: '/credits' },
   { icon: PieChart, label: 'Expenses', path: '/expenses' },
   { icon: Clock, label: 'Daily Closing', path: '/closing' },
@@ -50,7 +63,7 @@ const menuItems = [
 
 export const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const [expandedMenus, setExpandedMenus] = useState(['/history']);
+  const [expandedMenus, setExpandedMenus] = useState(['/history', '/inventory']);
 
   const toggleMenu = (path) => {
     setExpandedMenus(prev => 
@@ -61,6 +74,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const isMenuOpen = (path) => expandedMenus.includes(path);
+  // Updated logic to check if exact match for parent or child
   const isChildActive = (children) => children.some(child => location.pathname === child.path);
 
   return (
@@ -88,7 +102,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
               alt="Logo" 
               className="w-10 h-10 rounded-full object-cover border border-border"
             />
-            {/* Removed "ZohoInv" text as requested */}
           </div>
           <button onClick={onClose} className="lg:hidden text-text-secondary">
             <X size={20} />
@@ -125,6 +138,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                           <NavLink
                             key={child.path}
                             to={child.path}
+                            end={child.path === item.path} // Add end prop for exact matching on parent path if reused
                             onClick={() => window.innerWidth < 1024 && onClose()}
                             className={({ isActive }) => cn(
                               "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",

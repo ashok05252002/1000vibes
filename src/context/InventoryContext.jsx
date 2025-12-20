@@ -118,6 +118,12 @@ const generateInvoices = (count, customers) => {
     // Force some invoices to be "Today" for Daily Closing data
     const date = index < 5 ? today : faker.date.recent({ days: 60 }).toISOString().split('T')[0];
     
+    // Calculate paid amount based on status
+    let paidAmount = 0;
+    if (status === 'Paid') paidAmount = totalAmount;
+    else if (status === 'Pending' || status === 'Overdue') paidAmount = 0;
+    else paidAmount = totalAmount * 0.5; // Partial logic if we had it in generator
+
     return {
       id: faker.string.uuid(),
       invoiceNo: 'INV-' + faker.string.numeric(5),
@@ -125,6 +131,8 @@ const generateInvoices = (count, customers) => {
       customerId: customer?.id,
       customerName: customer?.name || 'Unknown',
       amount: totalAmount,
+      paidAmount: paidAmount,
+      dueAmount: totalAmount - paidAmount,
       status: status,
       paymentMode: status === 'Paid' ? faker.helpers.arrayElement(['Cash', 'UPI', 'Card', 'Cash']) : null,
       items: items
@@ -317,7 +325,7 @@ export const InventoryProvider = ({ children }) => {
     logAction(id, 'Product', 'Update', `Updated product details`, user, changes);
   };
 
-  // --- New: Adjust Stock (Damage/Loss) ---
+  // --- Adjust Stock (Damage/Loss) ---
   const adjustStock = (productId, qty, type, notes, user = 'Admin User') => {
     // Update Product Stock
     setProducts(prev => prev.map(p => {
@@ -341,6 +349,29 @@ export const InventoryProvider = ({ children }) => {
     logAction(productId, 'Inventory', 'Adjustment', `Stock adjusted: ${type} - ${qty} units`, user);
   };
 
+  // --- NEW: Stock In (Add Stock) ---
+  const stockIn = (productId, qty, newPrice, notes, user = 'Admin User') => {
+    setProducts(prev => prev.map(p => {
+        if (p.id === productId) {
+            // Update Stock AND Update Purchase Price (inPrice)
+            return { ...p, stock: p.stock + qty, inPrice: newPrice };
+        }
+        return p;
+    }));
+
+    setStockMovements(prev => [{
+        id: faker.string.uuid(),
+        productId,
+        date: new Date().toISOString().split('T')[0],
+        type: 'Stock In',
+        qty: qty,
+        reason: notes || 'Manual Stock In',
+        user
+    }, ...prev]);
+
+    logAction(productId, 'Inventory', 'Stock In', `Added ${qty} units @ ${newPrice}`, user);
+  };
+
   const checkDuplicateName = (name, excludeId = null) => {
     return products.some(p => p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== excludeId);
   };
@@ -352,7 +383,7 @@ export const InventoryProvider = ({ children }) => {
     return customer;
   };
 
-  // --- New: Record Customer Payment ---
+  // --- Record Customer Payment ---
   const recordPayment = (customerId, amount, mode, notes) => {
     setCustomers(prev => prev.map(c => {
       if (c.id === customerId) {
@@ -361,13 +392,7 @@ export const InventoryProvider = ({ children }) => {
       return c;
     }));
 
-    // Log as a transaction (Optional: Add to a 'transactions' state if we had one, for now we log audit)
     logAction(customerId, 'Credits', 'Payment', `Received payment of ₹${amount} via ${mode}. Notes: ${notes}`);
-    
-    // Add to invoices list as a "Payment Receipt" for tracking in P&L? 
-    // Or just keep it separate. For P&L cash flow, it's money in.
-    // Let's create a pseudo-invoice for record keeping if needed, or just rely on balance update.
-    // For simplicity in this demo, we just update balance.
   };
 
   // --- Actions: Vendors ---
@@ -378,14 +403,37 @@ export const InventoryProvider = ({ children }) => {
 
   // --- Actions: Invoices ---
   const addInvoice = (invoice) => {
-    setInvoices(prev => [invoice, ...prev]);
+    // Calculate Partial Payment Status
+    const paidAmount = invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.status === 'Paid' ? invoice.amount : 0);
+    const dueAmount = invoice.amount - paidAmount;
     
-    setCustomers(prev => prev.map(c => {
-      if (c.id === invoice.customerId && invoice.status !== 'Paid') {
-        return { ...c, balance: c.balance + invoice.amount };
-      }
-      return c;
-    }));
+    let status = invoice.status;
+    if (dueAmount <= 0) {
+        status = 'Paid';
+    } else if (paidAmount > 0) {
+        status = 'Partial';
+    } else {
+        status = 'Pending';
+    }
+
+    const finalInvoice = {
+        ...invoice,
+        status,
+        paidAmount,
+        dueAmount: Math.max(0, dueAmount)
+    };
+
+    setInvoices(prev => [finalInvoice, ...prev]);
+    
+    // Update Customer Balance (Add only the DUE amount)
+    if (finalInvoice.customerId && dueAmount > 0) {
+      setCustomers(prev => prev.map(c => {
+        if (c.id === finalInvoice.customerId) {
+          return { ...c, balance: c.balance + dueAmount };
+        }
+        return c;
+      }));
+    }
 
     // Deduct Stock & Log Movement
     invoice.items.forEach(item => {
@@ -407,7 +455,7 @@ export const InventoryProvider = ({ children }) => {
       }, ...prev]);
     });
 
-    logAction(invoice.id, 'Billing', 'Create', `Created Invoice ${invoice.invoiceNo}`);
+    logAction(invoice.id, 'Billing', 'Create', `Created Invoice ${invoice.invoiceNo} (${status})`);
   };
 
   const updateInvoice = (id, updatedInvoice) => {
@@ -418,14 +466,6 @@ export const InventoryProvider = ({ children }) => {
   // --- Actions: Bills (Vendors) ---
   const addBill = (bill) => {
     setBills(prev => [bill, ...prev]);
-    
-    // Add Stock & Log Movement
-    bill.items.forEach(item => {
-        // Note: In a real app we would match item.productName to a productId or create new
-        // For this demo, we assume bill items might not map directly to inventory unless selected
-        // If we had productId in bill items, we would increase stock here.
-    });
-
     logAction(bill.id, 'Billing', 'Create', `Created Vendor Bill ${bill.billNo}`);
   };
 
@@ -448,7 +488,7 @@ export const InventoryProvider = ({ children }) => {
     <InventoryContext.Provider value={{ 
       roles, addRole,
       users, addUser,
-      products, addProduct, updateProduct, checkDuplicateName, getProductLogs, adjustStock, getProductHistory,
+      products, addProduct, updateProduct, checkDuplicateName, getProductLogs, adjustStock, stockIn, getProductHistory,
       customers, addCustomer, recordPayment,
       vendors, addVendor,
       invoices, addInvoice, updateInvoice,

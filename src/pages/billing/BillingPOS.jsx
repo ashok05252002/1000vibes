@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Minus, Trash2, UserPlus, ShoppingCart, Save, RefreshCw, Package, CreditCard, Barcode, X, LayoutGrid, List, ArrowRight, Phone, MapPin, Check, Printer, CheckCircle, ChevronUp, ChevronDown, Filter } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, UserPlus, ShoppingCart, Save, RefreshCw, Package, CreditCard, Barcode, X, LayoutGrid, List, ArrowRight, Phone, MapPin, Check, Printer, CheckCircle, ChevronDown, Wallet } from 'lucide-react';
 import { faker } from '@faker-js/faker';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -19,7 +19,7 @@ export const BillingPOS = () => {
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); // New: Mobile Cart Drawer
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
   const searchInputRef = useRef(null);
   
@@ -33,6 +33,10 @@ export const BillingPOS = () => {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [cart, setCart] = useState([]);
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', area: '' });
+
+  // Checkout Modal State
+  const [paymentType, setPaymentType] = useState('Full'); // 'Full' or 'Partial'
+  const [tenderedAmount, setTenderedAmount] = useState('');
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -83,6 +87,7 @@ export const BillingPOS = () => {
         name: product.name,
         sku: product.sku,
         price: product.customerPrice,
+        standardPrice: product.customerPrice,
         minPrice: product.minCustomerPrice,
         qty: 1,
         total: product.customerPrice,
@@ -135,13 +140,25 @@ export const BillingPOS = () => {
       return alert(`Price for ${priceErrors[0].name} is below minimum (${formatCurrency(priceErrors[0].minPrice)})`);
     }
 
+    // Reset checkout state
+    setPaymentType('Full');
+    setTenderedAmount('');
     setIsCheckoutModalOpen(true);
   };
 
+  const cartTotal = cart.reduce((acc, item) => acc + item.total, 0);
+
   const processInvoice = (shouldPrint) => {
     const customer = customers.find(c => c.id === selectedCustomerId);
-    const totalAmount = cart.reduce((acc, item) => acc + item.total, 0);
     const invoiceId = faker.string.uuid();
+    
+    // Determine Paid Amount
+    let finalPaidAmount = 0;
+    if (paymentType === 'Full') {
+        finalPaidAmount = cartTotal;
+    } else {
+        finalPaidAmount = parseFloat(tenderedAmount) || 0;
+    }
 
     const invoice = {
       id: invoiceId,
@@ -149,8 +166,9 @@ export const BillingPOS = () => {
       date: new Date().toISOString().split('T')[0],
       customerId: selectedCustomerId,
       customerName: customer.name,
-      amount: totalAmount,
-      status: 'Paid',
+      amount: cartTotal,
+      paidAmount: finalPaidAmount,
+      // status will be calculated in context based on paidAmount vs amount
       paymentMode: paymentMode,
       items: cart.map(item => ({
         id: faker.string.uuid(),
@@ -158,6 +176,7 @@ export const BillingPOS = () => {
         productName: item.name,
         qty: item.qty,
         price: item.price,
+        standardPrice: item.standardPrice || item.price,
         total: item.total
       }))
     };
@@ -216,11 +235,8 @@ export const BillingPOS = () => {
     setNewCustomer({ name: '', phone: '', area: '' });
   };
 
-  const cartTotal = cart.reduce((acc, item) => acc + item.total, 0);
-
-  // --- Components ---
-
-  const CartContent = () => (
+  // --- Cart Content Render Logic ---
+  const renderCartContent = () => (
     <div className="flex flex-col h-full">
       {/* Cart Header */}
       <div className="p-4 border-b border-border bg-gray-50 shrink-0">
@@ -272,9 +288,10 @@ export const BillingPOS = () => {
                           <Phone size={10} /> {c.phone}
                         </p>
                       </div>
-                      {c.city && (
-                        <span className="text-xs text-text-muted bg-gray-100 px-2 py-0.5 rounded">{c.city}</span>
-                      )}
+                      <div className="text-right">
+                          {c.city && <span className="text-xs text-text-muted bg-gray-100 px-2 py-0.5 rounded block mb-1">{c.city}</span>}
+                          {c.balance > 0 && <span className="text-xs text-red-500 font-medium">Due: {formatCurrency(c.balance)}</span>}
+                      </div>
                     </button>
                   ))}
                   <div className="p-2 bg-gray-50 border-t border-border sticky bottom-0">
@@ -318,6 +335,15 @@ export const BillingPOS = () => {
                   <h5 className="text-sm font-medium text-text-primary truncate pr-2">{item.name}</h5>
                   <span className="text-sm font-bold text-text-primary">{formatCurrency(item.total)}</span>
                 </div>
+                
+                {/* Price Difference Display */}
+                {item.price < item.standardPrice && (
+                    <div className="flex items-center gap-1 text-[10px] text-red-500 mb-1">
+                        <span className="line-through text-gray-400">{formatCurrency(item.standardPrice)}</span>
+                        <span className="font-medium">(-{formatCurrency(item.standardPrice - item.price)})</span>
+                    </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center bg-white border border-border rounded-md h-7">
                     <button onClick={() => updateQty(item.productId, -1)} className="w-7 h-full flex items-center justify-center hover:bg-gray-100 text-text-secondary"><Minus size={12} /></button>
@@ -429,7 +455,7 @@ export const BillingPOS = () => {
 
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* LEFT: Categories Sidebar (Desktop) / Top Bar (Mobile) */}
+        {/* LEFT: Categories Sidebar */}
         <div className="hidden lg:flex w-20 xl:w-64 bg-white border-r border-border flex-col overflow-y-auto custom-scrollbar shrink-0">
           <button 
             onClick={() => setSelectedCategory('All')}
@@ -457,7 +483,7 @@ export const BillingPOS = () => {
 
         {/* MAIN: Product Grid */}
         <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Mobile Categories (Horizontal Scroll) */}
+            {/* Mobile Categories */}
             <div className="lg:hidden bg-white border-b border-border overflow-x-auto flex items-center gap-2 p-2 shrink-0 no-scrollbar">
                 <button 
                     onClick={() => setSelectedCategory('All')}
@@ -515,7 +541,7 @@ export const BillingPOS = () => {
 
         {/* RIGHT: Cart Sidebar (Desktop) */}
         <div className="hidden lg:flex w-96 bg-white border-l border-border flex-col shadow-xl shrink-0 z-20">
-            <CartContent />
+            {renderCartContent()}
         </div>
 
         {/* MOBILE: Bottom Cart Bar */}
@@ -549,7 +575,7 @@ export const BillingPOS = () => {
                         </button>
                     </div>
                     <div className="flex-1 overflow-hidden">
-                        <CartContent />
+                        {renderCartContent()}
                     </div>
                 </div>
             </div>
@@ -641,14 +667,56 @@ export const BillingPOS = () => {
               <span className="text-text-secondary text-sm">Total Items</span>
               <span className="font-medium text-text-primary">{cart.length}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+            <div className="flex justify-between items-center pb-2">
               <span className="text-text-secondary text-sm">Payment Mode</span>
               <span className="font-medium text-text-primary">{paymentMode}</span>
             </div>
-            <div className="flex justify-between items-center pt-1">
-              <span className="text-text-primary font-medium">Total Amount</span>
+          </div>
+
+          {/* Payment Type Toggle */}
+          <div className="grid grid-cols-2 gap-3 p-1 bg-gray-100 rounded-lg">
+              <button 
+                  onClick={() => setPaymentType('Full')}
+                  className={`py-2 text-sm font-medium rounded-md transition-all ${paymentType === 'Full' ? 'bg-white shadow-sm text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                  Full Payment
+              </button>
+              <button 
+                  onClick={() => setPaymentType('Partial')}
+                  className={`py-2 text-sm font-medium rounded-md transition-all ${paymentType === 'Partial' ? 'bg-white shadow-sm text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                  Partial / Credit
+              </button>
+          </div>
+
+          {/* Partial Payment Input */}
+          {paymentType === 'Partial' && (
+              <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <div>
+                      <label className="block text-sm font-medium text-text-primary mb-1">Amount Paid Now</label>
+                      <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">₹</span>
+                          <input 
+                              type="number" 
+                              className="w-full pl-7 pr-3 py-2.5 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                              value={tenderedAmount}
+                              onChange={e => setTenderedAmount(e.target.value)}
+                              placeholder="0.00"
+                              max={cartTotal}
+                          />
+                      </div>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-red-50 border border-red-100 rounded-md text-red-700">
+                      <span className="text-sm font-medium">Balance Due</span>
+                      <span className="font-bold">{formatCurrency(Math.max(0, cartTotal - (parseFloat(tenderedAmount) || 0)))}</span>
+                  </div>
+              </div>
+          )}
+
+          {/* Total Summary */}
+          <div className="flex justify-between items-center pt-2 border-t border-border">
+              <span className="text-text-primary font-medium text-lg">Total Bill Amount</span>
               <span className="font-bold text-primary text-2xl">{formatCurrency(cartTotal)}</span>
-            </div>
           </div>
 
           <div className="flex flex-col gap-3">
