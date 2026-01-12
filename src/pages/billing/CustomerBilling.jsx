@@ -11,7 +11,7 @@ import { useInventory } from '../../context/InventoryContext';
 
 export const CustomerBillingPage = () => {
   const navigate = useNavigate();
-  const { invoices, updateInvoice, recordPayment } = useInventory();
+  const { invoices, updateInvoice, recordPayment, customers } = useInventory();
   
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,13 +33,27 @@ export const CustomerBillingPage = () => {
       inv.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inv.customerName.toLowerCase().includes(searchQuery.toLowerCase());
     
+    // Enhanced Phone Search for Invoices
+    let matchesPhone = false;
+    if (inv.customerId) {
+        const customer = customers.find(c => c.id === inv.customerId);
+        if (customer && customer.phone) {
+             const phoneDigits = customer.phone.replace(/\D/g, '');
+             const searchDigits = searchQuery.replace(/\D/g, '');
+             
+             // Check direct match or stripped match if user typed at least 3 digits
+             matchesPhone = customer.phone.includes(searchQuery) || 
+                            (searchDigits.length > 3 && phoneDigits.includes(searchDigits));
+        }
+    }
+    
     const matchesStatus = 
       statusFilter === 'All' ? true :
       statusFilter === 'Paid' ? inv.status === 'Paid' :
       statusFilter === 'Partial' ? inv.status === 'Partial' :
       statusFilter === 'Unpaid' ? (inv.status === 'Pending' || inv.status === 'Overdue') : true;
 
-    return matchesSearch && matchesStatus;
+    return (matchesSearch || matchesPhone) && matchesStatus;
   });
 
   // Pagination Logic
@@ -105,7 +119,7 @@ export const CustomerBillingPage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input 
               type="text" 
-              placeholder="Search invoices..." 
+              placeholder="Search invoice, name or phone..." 
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-64"

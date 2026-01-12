@@ -59,13 +59,29 @@ export const BillingPOS = () => {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // Filter Customers
+  // Filter Customers (Enhanced for Phone Number Search)
   const filteredCustomers = useMemo(() => {
     if (!customerSearchTerm) return customers.slice(0, 5);
-    return customers.filter(c => 
-      c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || 
-      c.phone.includes(customerSearchTerm)
-    );
+    
+    const term = customerSearchTerm.toLowerCase();
+    const searchDigits = term.replace(/\D/g, ''); // Extract digits from search term
+
+    return customers.filter(c => {
+      // 1. Name Match
+      if (c.name.toLowerCase().includes(term)) return true;
+      
+      // 2. Exact Phone Match (substring)
+      if (c.phone.includes(customerSearchTerm)) return true;
+
+      // 3. Robust Phone Match (ignoring spaces/formatting)
+      // Only perform if user typed at least 3 digits to avoid too many matches on "1" or "9"
+      if (searchDigits.length > 2) {
+        const phoneDigits = c.phone.replace(/\D/g, '');
+        if (phoneDigits.includes(searchDigits)) return true;
+      }
+
+      return false;
+    });
   }, [customers, customerSearchTerm]);
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
@@ -246,7 +262,7 @@ export const BillingPOS = () => {
             <input
               type="text"
               className="w-full pl-9 pr-10 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white shadow-sm"
-              placeholder="Search Customer..."
+              placeholder="Search Customer (Name or Phone)..."
               value={customerSearchTerm}
               onChange={(e) => {
                 setCustomerSearchTerm(e.target.value);
