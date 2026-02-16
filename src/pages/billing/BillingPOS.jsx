@@ -13,7 +13,8 @@ export const BillingPOS = () => {
   const { products, customers, addInvoice, addCustomer } = useInventory();
   
   // UI State
-  const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState(''); // Raw input for product search
+  const [searchQuery, setSearchQuery] = useState(''); // Actual query used for filtering products
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
@@ -24,7 +25,8 @@ export const BillingPOS = () => {
   const searchInputRef = useRef(null);
   
   // Customer Search State
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerInputValue, setCustomerInputValue] = useState(''); // Raw input for customer search
+  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // Actual query used for filtering customers
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const customerDropdownRef = useRef(null);
 
@@ -87,6 +89,21 @@ export const BillingPOS = () => {
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   // --- Handlers ---
+
+  const handleSearchInput = (e) => {
+    const value = e.target.value;
+    setInputValue(value);
+    
+    // Desktop behavior: Search as you type
+    // Mobile behavior: Wait for button click (handled by handleMobileSearch)
+    if (window.innerWidth >= 768) {
+      setSearchQuery(value);
+    }
+  };
+
+  const handleMobileSearch = () => {
+    setSearchQuery(inputValue);
+  };
 
   const addToCart = (product) => {
     setCart(prev => {
@@ -198,35 +215,66 @@ export const BillingPOS = () => {
     };
 
     addInvoice(invoice);
-    setIsCheckoutModalOpen(false);
-    setIsMobileCartOpen(false);
-
-    setCart([]);
-    setSelectedCustomerId('');
-    setCustomerSearchTerm('');
-    setPaymentMode('Cash');
-    setBarcodeInput('');
-    setSearchQuery('');
-
-    setSuccessMessage(`Invoice ${invoice.invoiceNo} saved successfully!`);
-    setTimeout(() => setSuccessMessage(''), 3000);
 
     if (shouldPrint) {
-      window.open(`/billing/customer/${invoiceId}`, '_blank');
+      // Redirect to Invoice View Page for printing
+      navigate(`/billing/customer/${invoiceId}`);
+    } else {
+      // Stay here, clear cart, show success
+      setIsCheckoutModalOpen(false);
+      setIsMobileCartOpen(false);
+
+      setCart([]);
+      setSelectedCustomerId('');
+      setCustomerSearchTerm('');
+      setCustomerInputValue('');
+      setPaymentMode('Cash');
+      setBarcodeInput('');
+      setSearchQuery('');
+      setInputValue('');
+      setPaymentType('Full');
+      setTenderedAmount('');
+
+      setSuccessMessage(`Invoice ${invoice.invoiceNo} saved successfully!`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
+  };
+
+  // --- Customer Search Handlers ---
+  const handleCustomerInput = (e) => {
+    const value = e.target.value;
+    setCustomerInputValue(value);
+    
+    // Desktop: Search immediately
+    if (window.innerWidth >= 768) {
+        setCustomerSearchTerm(value);
+        setIsCustomerDropdownOpen(true);
+        if(selectedCustomerId && value !== selectedCustomer?.name) {
+            setSelectedCustomerId('');
+        }
+    }
+  };
+
+  const handleMobileCustomerSearch = () => {
+    setCustomerSearchTerm(customerInputValue);
+    setIsCustomerDropdownOpen(true);
+    if(selectedCustomerId && customerInputValue !== selectedCustomer?.name) {
+        setSelectedCustomerId('');
     }
   };
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomerId(customer.id);
+    setCustomerInputValue(customer.name);
     setCustomerSearchTerm(customer.name);
     setIsCustomerDropdownOpen(false);
   };
 
   const handleAddNewClick = () => {
-    const isPhone = /^\d+$/.test(customerSearchTerm);
+    const isPhone = /^\d+$/.test(customerInputValue);
     setNewCustomer({
-      name: isPhone ? '' : customerSearchTerm,
-      phone: isPhone ? customerSearchTerm : '',
+      name: isPhone ? '' : customerInputValue,
+      phone: isPhone ? customerInputValue : '',
       area: ''
     });
     setIsAddCustomerOpen(true);
@@ -246,6 +294,7 @@ export const BillingPOS = () => {
     };
     addCustomer(created);
     setSelectedCustomerId(created.id);
+    setCustomerInputValue(created.name);
     setCustomerSearchTerm(created.name);
     setIsAddCustomerOpen(false);
     setNewCustomer({ name: '', phone: '', area: '' });
@@ -257,35 +306,44 @@ export const BillingPOS = () => {
       {/* Cart Header */}
       <div className="p-4 border-b border-border bg-gray-50 shrink-0">
         <div className="relative mb-3" ref={customerDropdownRef}>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
-            <input
-              type="text"
-              className="w-full pl-9 pr-10 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white shadow-sm"
-              placeholder="Search Customer (Name or Phone)..."
-              value={customerSearchTerm}
-              onChange={(e) => {
-                setCustomerSearchTerm(e.target.value);
-                setIsCustomerDropdownOpen(true);
-                if(selectedCustomerId && e.target.value !== selectedCustomer?.name) {
-                    setSelectedCustomerId('');
-                }
-              }}
-              onFocus={() => setIsCustomerDropdownOpen(true)}
-            />
-            {selectedCustomerId ? (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600">
-                  <Check size={16} />
-                </div>
-            ) : (
-                <button 
-                onClick={handleAddNewClick}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded text-primary"
-                title="Add New"
-                >
-                  <UserPlus size={18} />
-                </button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
+              <input
+                type="text"
+                className="w-full pl-9 pr-10 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white shadow-sm"
+                placeholder="Search Customer (Name or Phone)..."
+                value={customerInputValue}
+                onChange={handleCustomerInput}
+                onKeyDown={(e) => e.key === 'Enter' && handleMobileCustomerSearch()}
+                onFocus={() => {
+                   // On desktop, ensure dropdown opens on focus if there is a term
+                   if (window.innerWidth >= 768 && customerInputValue) {
+                       setIsCustomerDropdownOpen(true);
+                   }
+                }}
+              />
+              {selectedCustomerId ? (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600">
+                    <Check size={16} />
+                  </div>
+              ) : (
+                  <button 
+                  onClick={handleAddNewClick}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded text-primary"
+                  title="Add New"
+                  >
+                    <UserPlus size={18} />
+                  </button>
+              )}
+            </div>
+            {/* Mobile Search Button for Customer */}
+            <button 
+              className="md:hidden bg-primary text-white p-2 rounded-lg hover:bg-primary-hover transition-colors shadow-sm flex items-center justify-center min-w-[40px]"
+              onClick={handleMobileCustomerSearch}
+            >
+              <Search size={20} />
+            </button>
           </div>
 
           {isCustomerDropdownOpen && (
@@ -318,7 +376,7 @@ export const BillingPOS = () => {
                         icon={UserPlus}
                         onClick={handleAddNewClick}
                       >
-                        Add "{customerSearchTerm}"
+                        Add "{customerInputValue}"
                       </Button>
                   </div>
                 </>
@@ -445,16 +503,26 @@ export const BillingPOS = () => {
 
       {/* Top Bar: Search & Barcode */}
       <div className="bg-white border-b border-border px-4 py-3 flex flex-col md:flex-row items-center gap-3 shrink-0 z-10">
-        <div className="w-full md:flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
-          <input 
-            ref={searchInputRef}
-            type="text" 
-            placeholder="Search products..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-gray-50 focus:bg-white transition-colors"
-          />
+        <div className="w-full md:flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
+            <input 
+              ref={searchInputRef}
+              type="text" 
+              placeholder="Search products..." 
+              value={inputValue}
+              onChange={handleSearchInput}
+              onKeyDown={(e) => e.key === 'Enter' && handleMobileSearch()}
+              className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-gray-50 focus:bg-white transition-colors"
+            />
+          </div>
+          {/* Mobile Search Button */}
+          <button 
+            className="md:hidden bg-primary text-white p-2 rounded-lg hover:bg-primary-hover transition-colors shadow-sm flex items-center justify-center min-w-[40px]"
+            onClick={handleMobileSearch}
+          >
+            <Search size={20} />
+          </button>
         </div>
         
         <form onSubmit={handleBarcodeSubmit} className="w-full md:w-64 relative">
