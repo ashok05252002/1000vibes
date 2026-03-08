@@ -15,6 +15,7 @@ import {
   X,
   Contact,
   Truck,
+  Store,
   ClipboardList,
   ChevronDown,
   ChevronRight,
@@ -23,13 +24,14 @@ import {
   History,
   List,
   ArrowDownRight,
-  Plus
+  Plus,
+  ShoppingBag
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Receipt, label: 'Billing', path: '/billing' }, // Direct link to POS
+  { icon: Receipt, label: 'Billing', path: '/billing' },
   { 
     icon: History, 
     label: 'Bills & History', 
@@ -41,7 +43,8 @@ const menuItems = [
   },
   { icon: Contact, label: 'Customers', path: '/customers' },
   { icon: Truck, label: 'Vendors', path: '/vendors' },
-  // Updated Inventory Menu
+  { icon: Store, label: 'Dealers', path: '/dealers' },
+  { icon: ShoppingBag, label: 'Purchase Orders', path: '/purchase-orders' },
   { 
     icon: Package, 
     label: 'Inventory', 
@@ -74,12 +77,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const isMenuOpen = (path) => expandedMenus.includes(path);
-  // Updated logic to check if exact match for parent or child
   const isChildActive = (children) => children.some(child => location.pathname === child.path);
 
   return (
     <>
-      {/* Mobile Overlay */}
       <div 
         className={cn(
           "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity",
@@ -88,7 +89,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
         onClick={onClose}
       />
 
-      {/* Sidebar Container */}
       <aside 
         className={cn(
           "fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r border-border transition-transform duration-300 lg:translate-x-0 lg:static flex flex-col",
@@ -113,7 +113,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
             {menuItems.map((item) => (
               <div key={item.path}>
                 {item.children ? (
-                  // Parent Item with Dropdown
                   <div>
                     <button
                       onClick={() => toggleMenu(item.path)}
@@ -131,14 +130,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
                       {isMenuOpen(item.path) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                     
-                    {/* Dropdown Content */}
                     {isMenuOpen(item.path) && (
                       <div className="ml-4 mt-1 space-y-1 border-l-2 border-border pl-2">
                         {item.children.map((child) => (
                           <NavLink
                             key={child.path}
                             to={child.path}
-                            end={child.path === item.path} // Add end prop for exact matching on parent path if reused
+                            end={child.path === item.path}
                             onClick={() => window.innerWidth < 1024 && onClose()}
                             className={({ isActive }) => cn(
                               "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
@@ -147,7 +145,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
                                 : "text-text-secondary hover:text-text-primary hover:bg-gray-50"
                             )}
                           >
-                            {/* {child.icon && <child.icon size={16} />} */}
                             {child.label}
                           </NavLink>
                         ))}
@@ -155,7 +152,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
                     )}
                   </div>
                 ) : (
-                  // Standard Item
                   <NavLink
                     to={item.path}
                     onClick={() => window.innerWidth < 1024 && onClose()}

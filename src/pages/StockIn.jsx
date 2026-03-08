@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Search, ArrowDownRight, CheckCircle, ChevronDown, X } from 'lucide-react';
+import { ArrowLeft, Package, Search, ArrowDownRight, CheckCircle, ChevronDown, Plus } from 'lucide-react';
+import { faker } from '@faker-js/faker';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
 import { formatCurrency } from '../lib/utils';
-import { useInventory } from '../context/InventoryContext';
+import { useInventory, PRODUCT_CATEGORIES } from '../context/InventoryContext';
 
 export const StockInPage = () => {
   const navigate = useNavigate();
-  const { products, stockIn } = useInventory();
+  const { products, stockIn, addProduct } = useInventory();
   
   const [selectedProductId, setSelectedProductId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +23,18 @@ export const StockInPage = () => {
     notes: ''
   });
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Quick Add Product State
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    category: '',
+    inPrice: '',
+    vendorPrice: '',
+    minVendorPrice: '',
+    customerPrice: '',
+    minCustomerPrice: ''
+  });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -49,7 +63,7 @@ export const StockInPage = () => {
       ...prev,
       newPrice: product.inPrice // Default to current purchase price
     }));
-    setSearchQuery(''); // Reset search or keep it? Let's reset to show selected name if we were using an input, but here we show a card.
+    setSearchQuery(''); 
     setIsDropdownOpen(false);
   };
 
@@ -73,6 +87,51 @@ export const StockInPage = () => {
         setSelectedProductId('');
         setSearchQuery('');
     }, 2000);
+  };
+
+  // --- Quick Add Product Handlers ---
+  const handleOpenAddProduct = () => {
+    setNewProduct({
+      name: searchQuery, // Pre-fill with whatever they searched for
+      category: '',
+      inPrice: '',
+      vendorPrice: '',
+      minVendorPrice: '',
+      customerPrice: '',
+      minCustomerPrice: ''
+    });
+    setIsAddProductModalOpen(true);
+    setIsDropdownOpen(false);
+  };
+
+  const handleQuickAddProduct = (e) => {
+    e.preventDefault();
+    if (!newProduct.name || !newProduct.category || !newProduct.inPrice || !newProduct.customerPrice) {
+      return alert('Please fill all required fields');
+    }
+
+    const createdProduct = {
+      id: faker.string.uuid(),
+      name: newProduct.name,
+      category: newProduct.category,
+      sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase(),
+      image: null,
+      tags: '',
+      stock: 0, // Stock is 0 initially, will be updated by Stock In
+      inPrice: parseFloat(newProduct.inPrice),
+      vendorPrice: parseFloat(newProduct.vendorPrice || newProduct.customerPrice),
+      minVendorPrice: parseFloat(newProduct.minVendorPrice || newProduct.customerPrice),
+      customerPrice: parseFloat(newProduct.customerPrice),
+      minCustomerPrice: parseFloat(newProduct.minCustomerPrice || newProduct.customerPrice),
+      isActive: true,
+      lastUpdated: new Date().toLocaleDateString('en-IN')
+    };
+
+    addProduct(createdProduct);
+    
+    // Auto-select the newly created product
+    handleProductSelect(createdProduct);
+    setIsAddProductModalOpen(false);
   };
 
   return (
@@ -145,8 +204,21 @@ export const StockInPage = () => {
                         </div>
                       ))
                   ) : (
-                      <div className="p-4 text-center text-text-secondary text-sm">No products found</div>
+                      <div className="p-4 text-center text-text-secondary text-sm">No products found matching "{searchQuery}"</div>
                   )}
+                </div>
+
+                {/* Always show Add Product button at the bottom of dropdown */}
+                <div className="p-2 border-t border-border bg-gray-50 rounded-b-md sticky bottom-0">
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    className="w-full justify-center" 
+                    icon={Plus}
+                    onClick={handleOpenAddProduct}
+                  >
+                    Add New Product {searchQuery ? `"${searchQuery}"` : ''}
+                  </Button>
                 </div>
               </div>
             )}
@@ -217,6 +289,138 @@ export const StockInPage = () => {
           </div>
         </form>
       </Card>
+
+      {/* Quick Add Product Modal */}
+      <Modal 
+        isOpen={isAddProductModalOpen} 
+        onClose={() => setIsAddProductModalOpen(false)}
+        title="Quick Add Product"
+        className="max-w-2xl"
+      >
+        <form onSubmit={handleQuickAddProduct} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-text-primary mb-1">Product Name <span className="text-red-500">*</span></label>
+              <input 
+                type="text" 
+                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                value={newProduct.name}
+                onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                required
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-text-primary mb-1">Category <span className="text-red-500">*</span></label>
+              <select 
+                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                value={newProduct.category}
+                onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                required
+              >
+                <option value="">Select Category</option>
+                {PRODUCT_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h4 className="text-sm font-semibold text-text-primary mb-4">Pricing Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
+              
+              {/* Purchase Price */}
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Purchase Price (In) <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">₹</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="w-full pl-6 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={newProduct.inPrice}
+                    onChange={e => setNewProduct({...newProduct, inPrice: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Vendor Pricing */}
+              <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                <div className="col-span-2 pb-1 border-b border-border/50">
+                  <span className="text-xs font-semibold text-text-primary">Vendor Pricing (B2B)</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Standard Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">₹</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full pl-6 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      value={newProduct.vendorPrice}
+                      onChange={e => setNewProduct({...newProduct, vendorPrice: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Min Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">₹</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full pl-6 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      value={newProduct.minVendorPrice}
+                      onChange={e => setNewProduct({...newProduct, minVendorPrice: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Pricing */}
+              <div className="md:col-start-2 md:col-span-2 grid grid-cols-2 gap-4 mt-2">
+                <div className="col-span-2 pb-1 border-b border-border/50">
+                  <span className="text-xs font-semibold text-text-primary">Customer Pricing (B2C)</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Standard Price <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">₹</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full pl-6 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      value={newProduct.customerPrice}
+                      onChange={e => setNewProduct({...newProduct, customerPrice: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Min Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">₹</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full pl-6 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      value={newProduct.minCustomerPrice}
+                      onChange={e => setNewProduct({...newProduct, minCustomerPrice: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3 border-t border-border">
+            <Button type="button" variant="secondary" onClick={() => setIsAddProductModalOpen(false)}>Cancel</Button>
+            <Button type="submit">Save & Select</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

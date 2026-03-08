@@ -8,11 +8,15 @@ import { CustomersPage } from './pages/Customers';
 import { CustomerDetailsPage } from './pages/CustomerDetails'; 
 import { VendorsPage } from './pages/Vendors';
 import { VendorDetailsPage } from './pages/VendorDetails'; 
+import { DealersPage } from './pages/Dealers'; // New Import
+import { PurchaseOrdersPage } from './pages/PurchaseOrders'; // New Import
+import { AddPurchaseOrderPage } from './pages/AddPurchaseOrder'; // New Import
+import { PurchaseOrderViewPage } from './pages/PurchaseOrderView'; // New Import
 import { InventoryPage } from './pages/Inventory';
 import { AddProductPage } from './pages/AddProduct';
 import { EditProductPage } from './pages/EditProduct';
 import { ProductViewPage } from './pages/ProductView';
-import { StockInPage } from './pages/StockIn'; // New Import
+import { StockInPage } from './pages/StockIn';
 import { AuditLogsPage } from './pages/AuditLogs';
 import { CustomerBillingPage } from './pages/billing/CustomerBilling';
 import { AddInvoicePage } from './pages/billing/AddInvoice';
@@ -43,11 +47,19 @@ function App() {
             {/* Vendor Routes */}
             <Route path="vendors" element={<VendorsPage />} />
             <Route path="vendors/:id" element={<VendorDetailsPage />} />
+
+            {/* Dealer Routes */}
+            <Route path="dealers" element={<DealersPage />} />
+            
+            {/* Purchase Order Routes */}
+            <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="purchase-orders/add" element={<AddPurchaseOrderPage />} />
+            <Route path="purchase-orders/:id" element={<PurchaseOrderViewPage />} />
             
             {/* Inventory Routes */}
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="inventory/add" element={<AddProductPage />} />
-            <Route path="inventory/stock-in" element={<StockInPage />} /> {/* New Route */}
+            <Route path="inventory/stock-in" element={<StockInPage />} />
             <Route path="inventory/edit/:id" element={<EditProductPage />} />
             <Route path="inventory/:id" element={<ProductViewPage />} />
             

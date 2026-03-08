@@ -91,6 +91,18 @@ const generateVendors = (count) => {
   }));
 };
 
+const generateDealers = (count) => {
+  return Array.from({ length: count }).map(() => ({
+    id: faker.string.uuid(),
+    name: faker.company.name(),
+    category: faker.helpers.arrayElement(PRODUCT_CATEGORIES),
+    phone: faker.phone.number('+91 9#### #####'),
+    email: faker.internet.email(),
+    balance: parseFloat(faker.finance.amount({ min: 0, max: 50000, dec: 2 })),
+    status: 'Active'
+  }));
+};
+
 const generateLineItems = (count) => {
   return Array.from({ length: count }).map(() => {
     const qty = faker.number.int({ min: 1, max: 10 });
@@ -115,14 +127,12 @@ const generateInvoices = (count, customers) => {
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const status = faker.helpers.arrayElement(['Paid', 'Paid', 'Pending', 'Overdue']);
     
-    // Force some invoices to be "Today" for Daily Closing data
     const date = index < 5 ? today : faker.date.recent({ days: 60 }).toISOString().split('T')[0];
     
-    // Calculate paid amount based on status
     let paidAmount = 0;
     if (status === 'Paid') paidAmount = totalAmount;
     else if (status === 'Pending' || status === 'Overdue') paidAmount = 0;
-    else paidAmount = totalAmount * 0.5; // Partial logic if we had it in generator
+    else paidAmount = totalAmount * 0.5;
 
     return {
       id: faker.string.uuid(),
@@ -159,11 +169,37 @@ const generateBills = (count, vendors) => {
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
+const generatePurchaseOrders = (count, dealers) => {
+  return Array.from({ length: count }).map(() => {
+    const dealer = faker.helpers.arrayElement(dealers);
+    const items = generateLineItems(faker.number.int({ min: 1, max: 5 }));
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+    const paymentStatus = faker.helpers.arrayElement(['Paid', 'Partial', 'Unpaid']);
+    
+    let paidAmount = 0;
+    if (paymentStatus === 'Paid') paidAmount = totalAmount;
+    else if (paymentStatus === 'Partial') paidAmount = totalAmount * 0.5;
+
+    return {
+      id: faker.string.uuid(),
+      poNo: 'PO-' + faker.string.numeric(5),
+      date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
+      dealerId: dealer?.id,
+      dealerName: dealer?.name || 'Unknown Dealer',
+      amount: totalAmount,
+      paidAmount: paidAmount,
+      dueAmount: totalAmount - paidAmount,
+      paymentStatus: paymentStatus,
+      status: faker.helpers.arrayElement(['Pending', 'Received']),
+      items: items
+    };
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
 const generateExpenses = (count) => {
   const today = new Date().toISOString().split('T')[0];
 
   return Array.from({ length: count }).map((_, index) => {
-    // Force some expenses to be "Today"
     const date = index < 3 ? today : faker.date.recent({ days: 90 }).toISOString().split('T')[0];
 
     return {
@@ -199,17 +235,15 @@ const generateUsers = (roles) => {
   });
 };
 
-// Generate initial stock movements for history
 const generateStockMovements = (products) => {
     let movements = [];
     products.forEach(p => {
-        // Initial Stock
         movements.push({
             id: faker.string.uuid(),
             productId: p.id,
             date: faker.date.past().toISOString().split('T')[0],
             type: 'Opening Stock',
-            qty: p.stock + 10, // Assuming some were sold
+            qty: p.stock + 10,
             reason: 'Initial Setup',
             user: 'System'
         });
@@ -223,13 +257,14 @@ export const InventoryProvider = ({ children }) => {
   const [products, setProducts] = useState(() => generateInventory(60));
   const [customers, setCustomers] = useState(() => generateCustomers(45));
   const [vendors, setVendors] = useState(() => generateVendors(25));
+  const [dealers, setDealers] = useState(() => generateDealers(15));
   const [users, setUsers] = useState(() => generateUsers(roles)); 
   
   const [invoices, setInvoices] = useState(() => generateInvoices(120, customers));
   const [bills, setBills] = useState(() => generateBills(50, vendors));
+  const [purchaseOrders, setPurchaseOrders] = useState(() => generatePurchaseOrders(30, dealers));
   const [expenses, setExpenses] = useState(() => generateExpenses(40));
   
-  // New: Stock Movements History
   const [stockMovements, setStockMovements] = useState(() => generateStockMovements(products));
 
   const [dailyClosings, setDailyClosings] = useState(() => {
@@ -284,7 +319,6 @@ export const InventoryProvider = ({ children }) => {
   // --- Actions: Products ---
   const addProduct = (product) => {
     setProducts((prev) => [product, ...prev]);
-    // Log opening stock
     setStockMovements(prev => [{
         id: faker.string.uuid(),
         productId: product.id,
@@ -308,7 +342,6 @@ export const InventoryProvider = ({ children }) => {
       }
     });
 
-    // If stock is manually updated in edit screen
     if (updatedFields.stock !== undefined && updatedFields.stock !== product.stock) {
         const diff = updatedFields.stock - product.stock;
         setStockMovements(prev => [{
@@ -325,22 +358,19 @@ export const InventoryProvider = ({ children }) => {
     logAction(id, 'Product', 'Update', `Updated product details`, user, changes);
   };
 
-  // --- Adjust Stock (Damage/Loss) ---
   const adjustStock = (productId, qty, type, notes, user = 'Admin User') => {
-    // Update Product Stock
     setProducts(prev => prev.map(p => {
         if (p.id === productId) {
-            return { ...p, stock: p.stock - qty }; // Assuming damage reduces stock
+            return { ...p, stock: p.stock - qty };
         }
         return p;
     }));
 
-    // Add Movement Log
     setStockMovements(prev => [{
         id: faker.string.uuid(),
         productId,
         date: new Date().toISOString().split('T')[0],
-        type: type, // Damage, Loss, etc.
+        type: type,
         qty: qty,
         reason: notes,
         user
@@ -349,11 +379,9 @@ export const InventoryProvider = ({ children }) => {
     logAction(productId, 'Inventory', 'Adjustment', `Stock adjusted: ${type} - ${qty} units`, user);
   };
 
-  // --- NEW: Stock In (Add Stock) ---
   const stockIn = (productId, qty, newPrice, notes, user = 'Admin User') => {
     setProducts(prev => prev.map(p => {
         if (p.id === productId) {
-            // Update Stock AND Update Purchase Price (inPrice)
             return { ...p, stock: p.stock + qty, inPrice: newPrice };
         }
         return p;
@@ -383,7 +411,6 @@ export const InventoryProvider = ({ children }) => {
     return customer;
   };
 
-  // --- Record Customer Payment ---
   const recordPayment = (customerId, amount, mode, notes) => {
     setCustomers(prev => prev.map(c => {
       if (c.id === customerId) {
@@ -395,15 +422,36 @@ export const InventoryProvider = ({ children }) => {
     logAction(customerId, 'Credits', 'Payment', `Received payment of ₹${amount} via ${mode}. Notes: ${notes}`);
   };
 
-  // --- Actions: Vendors ---
+  // --- Actions: Vendors & Dealers ---
   const addVendor = (vendor) => {
     setVendors(prev => [vendor, ...prev]);
     logAction(vendor.id, 'Vendor', 'Create', `Added new vendor ${vendor.company}`);
   };
 
+  const addDealer = (dealer) => {
+    setDealers(prev => [dealer, ...prev]);
+    logAction(dealer.id, 'Dealer', 'Create', `Added new dealer ${dealer.name}`);
+  };
+
+  // --- Actions: Purchase Orders ---
+  const addPurchaseOrder = (po) => {
+    setPurchaseOrders(prev => [po, ...prev]);
+    
+    // Update Dealer Balance if there is a due amount
+    if (po.dealerId && po.dueAmount > 0) {
+      setDealers(prev => prev.map(d => {
+        if (d.id === po.dealerId) {
+          return { ...d, balance: d.balance + po.dueAmount };
+        }
+        return d;
+      }));
+    }
+
+    logAction(po.id, 'Purchase Order', 'Create', `Created PO ${po.poNo} (${po.paymentStatus})`);
+  };
+
   // --- Actions: Invoices ---
   const addInvoice = (invoice) => {
-    // Calculate Partial Payment Status
     const paidAmount = invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.status === 'Paid' ? invoice.amount : 0);
     const dueAmount = invoice.amount - paidAmount;
     
@@ -425,7 +473,6 @@ export const InventoryProvider = ({ children }) => {
 
     setInvoices(prev => [finalInvoice, ...prev]);
     
-    // Update Customer Balance (Add only the DUE amount)
     if (finalInvoice.customerId && dueAmount > 0) {
       setCustomers(prev => prev.map(c => {
         if (c.id === finalInvoice.customerId) {
@@ -435,7 +482,6 @@ export const InventoryProvider = ({ children }) => {
       }));
     }
 
-    // Deduct Stock & Log Movement
     invoice.items.forEach(item => {
       setProducts(prev => prev.map(p => {
         if (p.id === item.productId) {
@@ -463,19 +509,16 @@ export const InventoryProvider = ({ children }) => {
     logAction(id, 'Billing', 'Update', `Updated Invoice ${updatedInvoice.invoiceNo}`);
   };
 
-  // --- Actions: Bills (Vendors) ---
   const addBill = (bill) => {
     setBills(prev => [bill, ...prev]);
     logAction(bill.id, 'Billing', 'Create', `Created Vendor Bill ${bill.billNo}`);
   };
 
-  // --- Actions: Expenses ---
   const addExpense = (expense) => {
     setExpenses(prev => [expense, ...prev]);
     logAction(expense.id, 'Expenses', 'Create', `Added expense: ${expense.category} - ₹${expense.amount}`);
   };
 
-  // --- Actions: Daily Closing ---
   const addDailyClosing = (closingData) => {
     setDailyClosings(prev => [closingData, ...prev]);
     logAction(closingData.id, 'Closing', 'Create', `Performed Daily Closing for ${closingData.date}`);
@@ -491,8 +534,10 @@ export const InventoryProvider = ({ children }) => {
       products, addProduct, updateProduct, checkDuplicateName, getProductLogs, adjustStock, stockIn, getProductHistory,
       customers, addCustomer, recordPayment,
       vendors, addVendor,
+      dealers, addDealer,
       invoices, addInvoice, updateInvoice,
       bills, addBill,
+      purchaseOrders, addPurchaseOrder,
       expenses, addExpense,
       dailyClosings, addDailyClosing,
       auditLogs
