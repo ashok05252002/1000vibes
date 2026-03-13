@@ -25,7 +25,8 @@ import {
   List,
   ArrowDownRight,
   Plus,
-  ShoppingBag
+  ShoppingBag,
+  Wallet
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -55,6 +56,7 @@ const menuItems = [
       { label: 'Add Product', path: '/inventory/add', icon: Plus }
     ]
   },
+  { icon: Wallet, label: 'Accounts & Ledger', path: '/accounts' },
   { icon: CreditCard, label: 'Credits', path: '/credits' },
   { icon: PieChart, label: 'Expenses', path: '/expenses' },
   { icon: Clock, label: 'Daily Closing', path: '/closing' },

@@ -144,7 +144,7 @@ const generateInvoices = (count, customers) => {
       paidAmount: paidAmount,
       dueAmount: totalAmount - paidAmount,
       status: status,
-      paymentMode: status === 'Paid' ? faker.helpers.arrayElement(['Cash', 'UPI', 'Card', 'Cash']) : null,
+      paymentMode: status === 'Paid' ? faker.helpers.arrayElement(['Cash', 'UPI', 'Card', 'Bank Transfer']) : 'Cash',
       items: items
     };
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -175,15 +175,35 @@ const generatePurchaseOrders = (count, dealers) => {
     const items = generateLineItems(faker.number.int({ min: 1, max: 5 }));
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const paymentStatus = faker.helpers.arrayElement(['Paid', 'Partial', 'Unpaid']);
+    const poDate = faker.date.recent({ days: 30 }).toISOString().split('T')[0];
     
     let paidAmount = 0;
-    if (paymentStatus === 'Paid') paidAmount = totalAmount;
-    else if (paymentStatus === 'Partial') paidAmount = totalAmount * 0.5;
+    let paymentHistory = [];
+
+    if (paymentStatus === 'Paid') {
+        paidAmount = totalAmount;
+        paymentHistory.push({
+            id: faker.string.uuid(),
+            date: poDate,
+            amount: paidAmount,
+            mode: 'Bank Transfer',
+            notes: 'Full Payment'
+        });
+    } else if (paymentStatus === 'Partial') {
+        paidAmount = totalAmount * 0.5;
+        paymentHistory.push({
+            id: faker.string.uuid(),
+            date: poDate,
+            amount: paidAmount,
+            mode: 'Bank Transfer',
+            notes: 'Advance Payment'
+        });
+    }
 
     return {
       id: faker.string.uuid(),
       poNo: 'PO-' + faker.string.numeric(5),
-      date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
+      date: poDate,
       dealerId: dealer?.id,
       dealerName: dealer?.name || 'Unknown Dealer',
       amount: totalAmount,
@@ -191,7 +211,8 @@ const generatePurchaseOrders = (count, dealers) => {
       dueAmount: totalAmount - paidAmount,
       paymentStatus: paymentStatus,
       status: faker.helpers.arrayElement(['Pending', 'Received']),
-      items: items
+      items: items,
+      paymentHistory: paymentHistory
     };
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
@@ -266,6 +287,27 @@ export const InventoryProvider = ({ children }) => {
   const [expenses, setExpenses] = useState(() => generateExpenses(40));
   
   const [stockMovements, setStockMovements] = useState(() => generateStockMovements(products));
+
+  // --- Unified Ledger (Transactions) ---
+  const [transactions, setTransactions] = useState(() => {
+    let txs = [];
+    invoices.forEach(inv => {
+        if (inv.paidAmount > 0) {
+            txs.push({ id: faker.string.uuid(), date: inv.date, type: 'Income', category: 'Sales', amount: inv.paidAmount, mode: inv.paymentMode || 'Cash', description: `Invoice ${inv.invoiceNo}` });
+        }
+    });
+    expenses.forEach(exp => {
+        txs.push({ id: faker.string.uuid(), date: exp.date, type: 'Expense', category: 'Expense', amount: exp.amount, mode: exp.paymentMode || 'Cash', description: exp.category });
+    });
+    purchaseOrders.forEach(po => {
+        if (po.paymentHistory) {
+            po.paymentHistory.forEach(ph => {
+                txs.push({ id: ph.id, date: ph.date, type: 'Expense', category: 'PO Payment', amount: ph.amount, mode: ph.mode || 'Bank Transfer', description: `PO ${po.poNo}` });
+            });
+        }
+    });
+    return txs.sort((a, b) => new Date(b.date) - new Date(a.date));
+  });
 
   const [dailyClosings, setDailyClosings] = useState(() => {
     return Array.from({ length: 5 }).map((_, i) => {
@@ -419,6 +461,17 @@ export const InventoryProvider = ({ children }) => {
       return c;
     }));
 
+    // Log to unified transactions ledger
+    setTransactions(prev => [{
+        id: faker.string.uuid(),
+        date: new Date().toISOString().split('T')[0],
+        type: 'Income',
+        category: 'Credit Receipt',
+        amount,
+        mode,
+        description: `Payment from Customer - ${notes}`
+    }, ...prev]);
+
     logAction(customerId, 'Credits', 'Payment', `Received payment of ₹${amount} via ${mode}. Notes: ${notes}`);
   };
 
@@ -435,19 +488,100 @@ export const InventoryProvider = ({ children }) => {
 
   // --- Actions: Purchase Orders ---
   const addPurchaseOrder = (po) => {
-    setPurchaseOrders(prev => [po, ...prev]);
+    const finalPO = {
+        ...po,
+        paymentHistory: po.paymentHistory || []
+    };
+
+    // If there's an initial paid amount, record it in history and transactions
+    if (finalPO.paidAmount > 0 && finalPO.paymentHistory.length === 0) {
+        const paymentId = faker.string.uuid();
+        finalPO.paymentHistory.push({
+            id: paymentId,
+            date: finalPO.date,
+            amount: finalPO.paidAmount,
+            mode: 'Cash', // Default assumption for initial payment if not specified
+            notes: 'Initial Payment'
+        });
+
+        // Log to unified transactions ledger
+        setTransactions(prev => [{
+            id: paymentId,
+            date: finalPO.date,
+            type: 'Expense',
+            category: 'PO Payment',
+            amount: finalPO.paidAmount,
+            mode: 'Cash',
+            description: `Initial Payment for PO ${finalPO.poNo}`
+        }, ...prev]);
+    }
+
+    setPurchaseOrders(prev => [finalPO, ...prev]);
     
     // Update Dealer Balance if there is a due amount
-    if (po.dealerId && po.dueAmount > 0) {
+    if (finalPO.dealerId && finalPO.dueAmount > 0) {
       setDealers(prev => prev.map(d => {
-        if (d.id === po.dealerId) {
-          return { ...d, balance: d.balance + po.dueAmount };
+        if (d.id === finalPO.dealerId) {
+          return { ...d, balance: d.balance + finalPO.dueAmount };
         }
         return d;
       }));
     }
 
-    logAction(po.id, 'Purchase Order', 'Create', `Created PO ${po.poNo} (${po.paymentStatus})`);
+    logAction(finalPO.id, 'Purchase Order', 'Create', `Created PO ${finalPO.poNo} (${finalPO.paymentStatus})`);
+  };
+
+  const recordPOPayment = (poId, amount, mode, date, notes) => {
+    setPurchaseOrders(prev => prev.map(po => {
+        if (po.id === poId) {
+            const newPaidAmount = po.paidAmount + amount;
+            const newDueAmount = Math.max(0, po.amount - newPaidAmount);
+            
+            let newStatus = po.paymentStatus;
+            if (newDueAmount === 0) newStatus = 'Paid';
+            else if (newPaidAmount > 0) newStatus = 'Partial';
+
+            const newPayment = {
+                id: faker.string.uuid(),
+                date: date || new Date().toISOString().split('T')[0],
+                amount,
+                mode,
+                notes
+            };
+
+            // Update Dealer Balance (reduce payable amount)
+            if (po.dealerId) {
+                setDealers(dPrev => dPrev.map(d => {
+                    if (d.id === po.dealerId) {
+                        return { ...d, balance: Math.max(0, d.balance - amount) };
+                    }
+                    return d;
+                }));
+            }
+
+            // Log to unified transactions ledger
+            setTransactions(txPrev => [{
+                id: newPayment.id,
+                date: newPayment.date,
+                type: 'Expense',
+                category: 'PO Payment',
+                amount,
+                mode,
+                description: `Payment for PO ${po.poNo} - ${notes}`
+            }, ...txPrev]);
+
+            logAction(poId, 'Purchase Order', 'Payment', `Recorded payment of ₹${amount} for PO ${po.poNo}`);
+
+            return {
+                ...po,
+                paidAmount: newPaidAmount,
+                dueAmount: newDueAmount,
+                paymentStatus: newStatus,
+                paymentHistory: [...(po.paymentHistory || []), newPayment]
+            };
+        }
+        return po;
+    }));
   };
 
   // --- Actions: Invoices ---
@@ -473,6 +607,19 @@ export const InventoryProvider = ({ children }) => {
 
     setInvoices(prev => [finalInvoice, ...prev]);
     
+    // Log to unified transactions ledger if payment was made
+    if (paidAmount > 0) {
+        setTransactions(prev => [{
+            id: faker.string.uuid(),
+            date: finalInvoice.date,
+            type: 'Income',
+            category: 'Sales',
+            amount: paidAmount,
+            mode: finalInvoice.paymentMode || 'Cash',
+            description: `Invoice ${finalInvoice.invoiceNo}`
+        }, ...prev]);
+    }
+
     if (finalInvoice.customerId && dueAmount > 0) {
       setCustomers(prev => prev.map(c => {
         if (c.id === finalInvoice.customerId) {
@@ -516,11 +663,37 @@ export const InventoryProvider = ({ children }) => {
 
   const addExpense = (expense) => {
     setExpenses(prev => [expense, ...prev]);
+    
+    // Log to unified transactions ledger
+    setTransactions(prev => [{
+        id: faker.string.uuid(),
+        date: expense.date,
+        type: 'Expense',
+        category: 'Expense',
+        amount: expense.amount,
+        mode: expense.paymentMode || 'Cash',
+        description: expense.category
+    }, ...prev]);
+
     logAction(expense.id, 'Expenses', 'Create', `Added expense: ${expense.category} - ₹${expense.amount}`);
   };
 
   const addDailyClosing = (closingData) => {
     setDailyClosings(prev => [closingData, ...prev]);
+    
+    // If there is a discrepancy, log it as an adjustment transaction
+    if (closingData.discrepancy !== 0) {
+        setTransactions(prev => [{
+            id: faker.string.uuid(),
+            date: closingData.date,
+            type: closingData.discrepancy > 0 ? 'Income' : 'Expense',
+            category: 'Cash Adjustment',
+            amount: Math.abs(closingData.discrepancy),
+            mode: 'Cash',
+            description: `Daily Closing Discrepancy (${closingData.date})`
+        }, ...prev]);
+    }
+
     logAction(closingData.id, 'Closing', 'Create', `Performed Daily Closing for ${closingData.date}`);
   };
 
@@ -537,9 +710,10 @@ export const InventoryProvider = ({ children }) => {
       dealers, addDealer,
       invoices, addInvoice, updateInvoice,
       bills, addBill,
-      purchaseOrders, addPurchaseOrder,
+      purchaseOrders, addPurchaseOrder, recordPOPayment,
       expenses, addExpense,
       dailyClosings, addDailyClosing,
+      transactions,
       auditLogs
     }}>
       {children}

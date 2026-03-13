@@ -8,10 +8,10 @@ import { CustomersPage } from './pages/Customers';
 import { CustomerDetailsPage } from './pages/CustomerDetails'; 
 import { VendorsPage } from './pages/Vendors';
 import { VendorDetailsPage } from './pages/VendorDetails'; 
-import { DealersPage } from './pages/Dealers'; // New Import
-import { PurchaseOrdersPage } from './pages/PurchaseOrders'; // New Import
-import { AddPurchaseOrderPage } from './pages/AddPurchaseOrder'; // New Import
-import { PurchaseOrderViewPage } from './pages/PurchaseOrderView'; // New Import
+import { DealersPage } from './pages/Dealers'; 
+import { PurchaseOrdersPage } from './pages/PurchaseOrders'; 
+import { AddPurchaseOrderPage } from './pages/AddPurchaseOrder'; 
+import { PurchaseOrderViewPage } from './pages/PurchaseOrderView'; 
 import { InventoryPage } from './pages/Inventory';
 import { AddProductPage } from './pages/AddProduct';
 import { EditProductPage } from './pages/EditProduct';
@@ -28,6 +28,7 @@ import { CreditsPage } from './pages/Credits';
 import { ExpensesPage } from './pages/Expenses';
 import { DailyClosingPage } from './pages/DailyClosing';
 import { ReportsPage } from './pages/Reports';
+import { AccountsPage } from './pages/Accounts'; // New Import
 import { InventoryProvider } from './context/InventoryContext';
 
 function App() {
@@ -77,20 +78,15 @@ function App() {
             <Route path="billing/customer/:id" element={<InvoiceViewPage />} />
             <Route path="billing/vendor/:id" element={<VendorBillViewPage />} />
             
-            {/* Audit Logs */}
-            <Route path="audit-logs" element={<AuditLogsPage />} />
-            
-            {/* Credits */}
+            {/* Finance & Accounting */}
+            <Route path="accounts" element={<AccountsPage />} />
             <Route path="credits" element={<CreditsPage />} />
-            
-            {/* Expenses */}
             <Route path="expenses" element={<ExpensesPage />} />
-            
-            {/* Daily Closing */}
             <Route path="closing" element={<DailyClosingPage />} />
             
-            {/* Reports */}
+            {/* Reports & Logs */}
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="audit-logs" element={<AuditLogsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
