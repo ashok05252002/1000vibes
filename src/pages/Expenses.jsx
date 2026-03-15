@@ -4,6 +4,7 @@ import { faker } from '@faker-js/faker';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
 import { formatCurrency } from '../lib/utils';
 import { useInventory, EXPENSE_CATEGORIES } from '../context/InventoryContext';
@@ -28,7 +29,8 @@ export const ExpensesPage = () => {
     category: '',
     amount: '',
     description: '',
-    paymentMode: 'Cash'
+    paymentMode: 'Cash',
+    reflectInDailyClosing: true
   });
 
   // Filter Logic
@@ -72,7 +74,8 @@ export const ExpensesPage = () => {
       category: '',
       amount: '',
       description: '',
-      paymentMode: 'Cash'
+      paymentMode: 'Cash',
+      reflectInDailyClosing: true
     });
   };
 
@@ -160,6 +163,7 @@ export const ExpensesPage = () => {
                 <th className="px-6 py-3">Category</th>
                 <th className="px-6 py-3">Description</th>
                 <th className="px-6 py-3">Payment Mode</th>
+                <th className="px-6 py-3 text-center">Daily Closing</th>
                 <th className="px-6 py-3">Recorded By</th>
                 <th className="px-6 py-3 text-right">Amount</th>
               </tr>
@@ -178,6 +182,11 @@ export const ExpensesPage = () => {
                       {exp.description}
                     </td>
                     <td className="px-6 py-4 text-text-secondary">{exp.paymentMode}</td>
+                    <td className="px-6 py-4 text-center">
+                      <Badge variant={exp.reflectInDailyClosing !== false ? 'success' : 'default'}>
+                        {exp.reflectInDailyClosing !== false ? 'Yes' : 'No'}
+                      </Badge>
+                    </td>
                     <td className="px-6 py-4 text-text-secondary text-xs">{exp.recordedBy}</td>
                     <td className="px-6 py-4 text-right font-medium text-text-primary">
                       {formatCurrency(exp.amount)}
@@ -186,7 +195,7 @@ export const ExpensesPage = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-text-secondary">
+                  <td colSpan="7" className="px-6 py-12 text-center text-text-secondary">
                     No expenses found for this period.
                   </td>
                 </tr>
@@ -196,7 +205,7 @@ export const ExpensesPage = () => {
             {paginatedExpenses.length > 0 && (
               <tfoot className="bg-gray-50 font-semibold text-text-primary border-t border-border">
                 <tr>
-                  <td colSpan="5" className="px-6 py-3 text-right">Total (This Page):</td>
+                  <td colSpan="6" className="px-6 py-3 text-right">Total (This Page):</td>
                   <td className="px-6 py-3 text-right">
                     {formatCurrency(paginatedExpenses.reduce((sum, e) => sum + e.amount, 0))}
                   </td>
@@ -290,6 +299,33 @@ export const ExpensesPage = () => {
               <option value="Bank Transfer">Bank Transfer</option>
               <option value="Card">Card</option>
             </select>
+          </div>
+
+          <div className="pt-2 border-t border-border">
+            <label className="block text-sm font-medium text-text-primary mb-2">Reflect in Daily Closing? *</label>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="reflectInDailyClosing"
+                  checked={formData.reflectInDailyClosing === true}
+                  onChange={() => setFormData(prev => ({ ...prev, reflectInDailyClosing: true }))}
+                  className="w-4 h-4 text-primary focus:ring-primary border-gray-300"
+                />
+                <span className="text-sm text-text-secondary">Yes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="reflectInDailyClosing"
+                  checked={formData.reflectInDailyClosing === false}
+                  onChange={() => setFormData(prev => ({ ...prev, reflectInDailyClosing: false }))}
+                  className="w-4 h-4 text-primary focus:ring-primary border-gray-300"
+                />
+                <span className="text-sm text-text-secondary">No</span>
+              </label>
+            </div>
+            <p className="text-xs text-text-secondary mt-1">If "No", this expense will not be deducted from the daily cash counter.</p>
           </div>
 
           <div className="pt-4 flex justify-end gap-3">

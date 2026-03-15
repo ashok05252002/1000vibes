@@ -230,7 +230,8 @@ const generateExpenses = (count) => {
       amount: parseFloat(faker.finance.amount({ min: 100, max: 15000, dec: 2 })),
       description: faker.lorem.sentence(3),
       paymentMode: faker.helpers.arrayElement(['Cash', 'UPI', 'Bank Transfer', 'Card']),
-      recordedBy: 'Admin User'
+      recordedBy: 'Admin User',
+      reflectInDailyClosing: faker.datatype.boolean(0.8) // 80% chance to be true
     };
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
