@@ -28,7 +28,9 @@ import { CreditsPage } from './pages/Credits';
 import { ExpensesPage } from './pages/Expenses';
 import { DailyClosingPage } from './pages/DailyClosing';
 import { ReportsPage } from './pages/Reports';
-import { AccountsPage } from './pages/Accounts'; // New Import
+import { AccountsPage } from './pages/Accounts';
+import { ReturnsPage } from './pages/Returns';
+import { AddReturnPage } from './pages/AddReturn';
 import { InventoryProvider } from './context/InventoryContext';
 
 function App() {
@@ -64,6 +66,10 @@ function App() {
             <Route path="inventory/edit/:id" element={<EditProductPage />} />
             <Route path="inventory/:id" element={<ProductViewPage />} />
             
+            {/* Returns Routes */}
+            <Route path="returns" element={<ReturnsPage />} />
+            <Route path="returns/add" element={<AddReturnPage />} />
+
             {/* Billing (POS) Route */}
             <Route path="billing" element={<BillingPOS />} />
             

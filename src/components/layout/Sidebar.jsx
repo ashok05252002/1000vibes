@@ -26,7 +26,8 @@ import {
   ArrowDownRight,
   Plus,
   ShoppingBag,
-  Wallet
+  Wallet,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -42,6 +43,7 @@ const menuItems = [
       { label: 'Vendor Bills', path: '/history/purchases', icon: ShoppingCart }
     ]
   },
+  { icon: RotateCcw, label: 'Returns & Refunds', path: '/returns' },
   { icon: Contact, label: 'Customers', path: '/customers' },
   { icon: Truck, label: 'Vendors', path: '/vendors' },
   { icon: Store, label: 'Dealers', path: '/dealers' },

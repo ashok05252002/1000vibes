@@ -273,6 +273,28 @@ const generateStockMovements = (products) => {
     return movements;
 };
 
+const generateReturns = (count, invoices) => {
+  return Array.from({ length: count }).map(() => {
+    const inv = faker.helpers.arrayElement(invoices);
+    const item = inv?.items ? faker.helpers.arrayElement(inv.items) : null;
+    
+    return {
+      id: faker.string.uuid(),
+      date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
+      customerId: inv?.customerId,
+      customerName: inv?.customerName,
+      invoiceId: inv?.id,
+      invoiceNo: inv?.invoiceNo,
+      productId: item?.productId,
+      productName: item?.productName || 'Unknown Product',
+      qty: faker.number.int({ min: 1, max: item?.qty || 2 }),
+      refundAmount: parseFloat(faker.finance.amount({ min: 50, max: 1000, dec: 2 })),
+      reason: faker.helpers.arrayElement(['Defective', 'Wrong Item', 'Customer Changed Mind', 'Size Issue']),
+      status: faker.helpers.arrayElement(['Pending', 'Restocked', 'Damaged'])
+    };
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
 export const InventoryProvider = ({ children }) => {
   // --- State ---
   const [roles, setRoles] = useState(() => generateRoles());
@@ -286,6 +308,7 @@ export const InventoryProvider = ({ children }) => {
   const [bills, setBills] = useState(() => generateBills(50, vendors));
   const [purchaseOrders, setPurchaseOrders] = useState(() => generatePurchaseOrders(30, dealers));
   const [expenses, setExpenses] = useState(() => generateExpenses(40));
+  const [returns, setReturns] = useState(() => generateReturns(15, invoices));
   
   const [stockMovements, setStockMovements] = useState(() => generateStockMovements(products));
 
@@ -306,6 +329,10 @@ export const InventoryProvider = ({ children }) => {
                 txs.push({ id: ph.id, date: ph.date, type: 'Expense', category: 'PO Payment', amount: ph.amount, mode: ph.mode || 'Bank Transfer', description: `PO ${po.poNo}` });
             });
         }
+    });
+    // Add dummy returns to ledger
+    returns.forEach(ret => {
+        txs.push({ id: faker.string.uuid(), date: ret.date, type: 'Expense', category: 'Customer Return', amount: ret.refundAmount, mode: 'Cash', description: `Refund for Inv ${ret.invoiceNo}` });
     });
     return txs.sort((a, b) => new Date(b.date) - new Date(a.date));
   });
@@ -698,6 +725,66 @@ export const InventoryProvider = ({ children }) => {
     logAction(closingData.id, 'Closing', 'Create', `Performed Daily Closing for ${closingData.date}`);
   };
 
+  // --- Actions: Returns ---
+  const addReturn = (returnData) => {
+    setReturns(prev => [returnData, ...prev]);
+    
+    // Log the refund in transactions
+    if (returnData.refundAmount > 0) {
+        setTransactions(prev => [{
+            id: faker.string.uuid(),
+            date: returnData.date,
+            type: 'Expense', // Refund is money out
+            category: 'Customer Return',
+            amount: returnData.refundAmount,
+            mode: 'Cash', // Defaulting to cash for refunds
+            description: `Refund for Inv ${returnData.invoiceNo}`
+        }, ...prev]);
+    }
+
+    logAction(returnData.id, 'Returns', 'Create', `Processed return for ${returnData.productName} (Qty: ${returnData.qty})`);
+  };
+
+  const processReturn = (returnId, action) => {
+    const ret = returns.find(r => r.id === returnId);
+    if (!ret) return;
+
+    if (action === 'Restock') {
+        // Add back to inventory
+        setProducts(prev => prev.map(p => {
+            if (p.id === ret.productId) {
+                return { ...p, stock: p.stock + ret.qty };
+            }
+            return p;
+        }));
+        
+        setStockMovements(prev => [{
+            id: faker.string.uuid(),
+            productId: ret.productId,
+            date: new Date().toISOString().split('T')[0],
+            type: 'Return (Restock)',
+            qty: ret.qty,
+            reason: `Restocked from Return (Inv ${ret.invoiceNo})`,
+            user: 'Admin User'
+        }, ...prev]);
+    } else if (action === 'Damage') {
+        // Do not add to inventory, just log as damage
+        setStockMovements(prev => [{
+            id: faker.string.uuid(),
+            productId: ret.productId,
+            date: new Date().toISOString().split('T')[0],
+            type: 'Return (Damaged)',
+            qty: ret.qty,
+            reason: `Damaged from Return (Inv ${ret.invoiceNo})`,
+            user: 'Admin User'
+        }, ...prev]);
+    }
+
+    // Update return status
+    setReturns(prev => prev.map(r => r.id === returnId ? { ...r, status: action === 'Restock' ? 'Restocked' : 'Damaged' } : r));
+    logAction(returnId, 'Returns', 'Update', `Marked return as ${action}`);
+  };
+
   const getProductLogs = (productId) => auditLogs.filter(l => l.entityId === productId);
   const getProductHistory = (productId) => stockMovements.filter(m => m.productId === productId).sort((a,b) => new Date(b.date) - new Date(a.date));
 
@@ -714,6 +801,7 @@ export const InventoryProvider = ({ children }) => {
       purchaseOrders, addPurchaseOrder, recordPOPayment,
       expenses, addExpense,
       dailyClosings, addDailyClosing,
+      returns, addReturn, processReturn,
       transactions,
       auditLogs
     }}>
