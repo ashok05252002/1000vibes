@@ -21,6 +21,7 @@ export const EXPENSE_CATEGORIES = [
   'Maintenance',
   'Internet',
   'Refreshments',
+  'Return Margin Loss', // Added new category for return losses
   'Miscellaneous'
 ];
 
@@ -176,6 +177,7 @@ const generatePurchaseOrders = (count, dealers) => {
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const paymentStatus = faker.helpers.arrayElement(['Paid', 'Partial', 'Unpaid']);
     const poDate = faker.date.recent({ days: 30 }).toISOString().split('T')[0];
+    const status = faker.helpers.arrayElement(['Pending', 'Received']);
     
     let paidAmount = 0;
     let paymentHistory = [];
@@ -200,6 +202,27 @@ const generatePurchaseOrders = (count, dealers) => {
         });
     }
 
+    // Generate received items if the status is 'Received'
+    let receivedItems = [];
+    if (status === 'Received') {
+        receivedItems = items.map(item => {
+            const hasDiff = Math.random() > 0.7; // 30% chance of discrepancy
+            let diff = 0;
+            if (hasDiff) {
+                diff = faker.number.int({ min: -2, max: 2 });
+                if (diff === 0) diff = -1; // Ensure a difference if hasDiff is true
+            }
+            const receivedQty = Math.max(0, item.qty + diff);
+            return {
+                productId: item.productId,
+                productName: item.productName,
+                orderedQty: item.qty,
+                receivedQty: receivedQty,
+                remarks: receivedQty !== item.qty ? 'Count mismatch on arrival' : ''
+            };
+        });
+    }
+
     return {
       id: faker.string.uuid(),
       poNo: 'PO-' + faker.string.numeric(5),
@@ -210,9 +233,10 @@ const generatePurchaseOrders = (count, dealers) => {
       paidAmount: paidAmount,
       dueAmount: totalAmount - paidAmount,
       paymentStatus: paymentStatus,
-      status: faker.helpers.arrayElement(['Pending', 'Received']),
+      status: status,
       items: items,
-      paymentHistory: paymentHistory
+      paymentHistory: paymentHistory,
+      receivedItems: receivedItems
     };
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
@@ -518,7 +542,8 @@ export const InventoryProvider = ({ children }) => {
   const addPurchaseOrder = (po) => {
     const finalPO = {
         ...po,
-        paymentHistory: po.paymentHistory || []
+        paymentHistory: po.paymentHistory || [],
+        receivedItems: []
     };
 
     // If there's an initial paid amount, record it in history and transactions
@@ -612,6 +637,41 @@ export const InventoryProvider = ({ children }) => {
     }));
   };
 
+  const checkInPurchaseOrder = (poId, receivedItems, user = 'Admin User') => {
+    // 1. Update PO Status and save received items
+    setPurchaseOrders(prev => prev.map(po => {
+        if (po.id === poId) {
+            return { ...po, status: 'Received', receivedItems };
+        }
+        return po;
+    }));
+
+    // 2. Update Stock & Log Movement
+    receivedItems.forEach(item => {
+        if (item.receivedQty > 0) {
+            setProducts(prev => prev.map(p => {
+                if (p.id === item.productId) {
+                    return { ...p, stock: p.stock + item.receivedQty };
+                }
+                return p;
+            }));
+
+            // Log stock movement
+            setStockMovements(prev => [{
+                id: faker.string.uuid(),
+                productId: item.productId,
+                date: new Date().toISOString().split('T')[0],
+                type: 'PO Check-in',
+                qty: item.receivedQty,
+                reason: `PO Check-in${item.remarks ? ' - ' + item.remarks : ''}`,
+                user
+            }, ...prev]);
+        }
+    });
+
+    logAction(poId, 'Purchase Check-in', 'Check-in', `Checked in PO ${poId}`, user);
+  };
+
   // --- Actions: Invoices ---
   const addInvoice = (invoice) => {
     const paidAmount = invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.status === 'Paid' ? invoice.amount : 0);
@@ -697,10 +757,10 @@ export const InventoryProvider = ({ children }) => {
         id: faker.string.uuid(),
         date: expense.date,
         type: 'Expense',
-        category: 'Expense',
+        category: expense.category, // Use the provided category
         amount: expense.amount,
         mode: expense.paymentMode || 'Cash',
-        description: expense.category
+        description: expense.description || expense.category
     }, ...prev]);
 
     logAction(expense.id, 'Expenses', 'Create', `Added expense: ${expense.category} - ₹${expense.amount}`);
@@ -745,7 +805,7 @@ export const InventoryProvider = ({ children }) => {
     logAction(returnData.id, 'Returns', 'Create', `Processed return for ${returnData.productName} (Qty: ${returnData.qty})`);
   };
 
-  const processReturn = (returnId, action) => {
+  const processReturn = (returnId, action, marginLoss = 0) => {
     const ret = returns.find(r => r.id === returnId);
     if (!ret) return;
 
@@ -767,6 +827,34 @@ export const InventoryProvider = ({ children }) => {
             reason: `Restocked from Return (Inv ${ret.invoiceNo})`,
             user: 'Admin User'
         }, ...prev]);
+
+        // Log Margin Loss to Expenses if applicable
+        if (marginLoss > 0) {
+            const expenseId = faker.string.uuid();
+            const newExpense = {
+                id: expenseId,
+                date: new Date().toISOString().split('T')[0],
+                category: 'Return Margin Loss',
+                amount: marginLoss,
+                description: `Margin loss for restocking returned item: ${ret.productName} (Inv ${ret.invoiceNo})`,
+                paymentMode: 'System Adjustment',
+                recordedBy: 'System',
+                reflectInDailyClosing: false // It's a paper loss, not cash missing from drawer
+            };
+            setExpenses(prev => [newExpense, ...prev]);
+            
+            // Log to unified transactions ledger
+            setTransactions(prev => [{
+                id: expenseId,
+                date: newExpense.date,
+                type: 'Expense',
+                category: 'Return Margin Loss',
+                amount: marginLoss,
+                mode: 'System Adjustment',
+                description: newExpense.description
+            }, ...prev]);
+        }
+
     } else if (action === 'Damage') {
         // Do not add to inventory, just log as damage
         setStockMovements(prev => [{
@@ -798,11 +886,12 @@ export const InventoryProvider = ({ children }) => {
       dealers, addDealer,
       invoices, addInvoice, updateInvoice,
       bills, addBill,
-      purchaseOrders, addPurchaseOrder, recordPOPayment,
+      purchaseOrders, addPurchaseOrder, recordPOPayment, checkInPurchaseOrder,
       expenses, addExpense,
       dailyClosings, addDailyClosing,
       returns, addReturn, processReturn,
       transactions,
+      stockMovements, // Exported to access global stock history
       auditLogs
     }}>
       {children}

@@ -27,7 +27,8 @@ import {
   Plus,
   ShoppingBag,
   Wallet,
-  RotateCcw
+  RotateCcw,
+  ClipboardCheck
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -48,6 +49,7 @@ const menuItems = [
   { icon: Truck, label: 'Vendors', path: '/vendors' },
   { icon: Store, label: 'Dealers', path: '/dealers' },
   { icon: ShoppingBag, label: 'Purchase Orders', path: '/purchase-orders' },
+  { icon: ClipboardCheck, label: 'Purchase Check-in', path: '/purchases' },
   { 
     icon: Package, 
     label: 'Inventory', 

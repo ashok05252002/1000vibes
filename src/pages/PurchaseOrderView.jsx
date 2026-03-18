@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, Store, CheckCircle, AlertCircle, CreditCard, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Printer, Store, CheckCircle, AlertCircle, CreditCard, Calendar, FileText, PackageCheck, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -13,6 +13,7 @@ export const PurchaseOrderViewPage = () => {
   const navigate = useNavigate();
   const { purchaseOrders, dealers, recordPOPayment } = useInventory();
 
+  const [activeTab, setActiveTab] = useState('details'); // 'details' or 'received'
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -25,6 +26,9 @@ export const PurchaseOrderViewPage = () => {
   const dealer = dealers.find(d => d.id === po?.dealerId);
 
   if (!po) return <div>Purchase Order not found</div>;
+
+  const isReceived = po.status === 'Received';
+  const hasDiscrepancies = po.receivedItems && po.receivedItems.some(item => item.receivedQty !== item.orderedQty);
 
   const handlePaymentSubmit = (e) => {
     e.preventDefault();
@@ -46,7 +50,7 @@ export const PurchaseOrderViewPage = () => {
             <ArrowLeft size={20} />
           </Button>
           <h1 className="text-2xl font-bold text-text-primary">Order {po.poNo}</h1>
-          <Badge variant={po.status === 'Received' ? 'success' : 'default'}>{po.status}</Badge>
+          <Badge variant={po.status === 'Received' ? 'success' : 'warning'}>{po.status}</Badge>
           <Badge variant={po.paymentStatus === 'Paid' ? 'success' : po.paymentStatus === 'Partial' ? 'warning' : 'danger'}>
             {po.paymentStatus}
           </Badge>
@@ -61,129 +65,223 @@ export const PurchaseOrderViewPage = () => {
         </div>
       </div>
 
-      <Card className="p-8 print:shadow-none print:border-none mb-6">
-        <div className="flex justify-between items-start border-b border-border pb-8 mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-text-primary mb-2">PURCHASE ORDER</h2>
-            <p className="text-text-secondary"># {po.poNo}</p>
-            <p className="text-text-secondary">Date: {po.date}</p>
-          </div>
-          <div className="text-right">
-            <h2 className="font-bold text-xl text-text-primary">Store Admin</h2>
-            <p className="text-text-secondary text-sm mt-1">
-              123, Main Street, Anna Nagar<br />
-              Chennai, Tamil Nadu - 600040
-            </p>
-          </div>
+      {/* ALWAYS SHOW TABS */}
+      <div className="border-b border-border mb-6 print:hidden">
+        <div className="flex gap-6">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'details' 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <FileText size={16} /> Order Details
+          </button>
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'received' 
+                ? (hasDiscrepancies && isReceived ? 'border-orange-500 text-orange-600' : 'border-primary text-primary')
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {isReceived && hasDiscrepancies ? <AlertTriangle size={16} /> : <PackageCheck size={16} />} 
+            {!isReceived ? 'Check-in Details' : (hasDiscrepancies ? 'Received with Changes' : 'Received Items')}
+          </button>
         </div>
+      </div>
 
-        <div className="mb-8">
-          <h3 className="text-sm font-semibold text-text-secondary uppercase mb-2 flex items-center gap-2">
-              <Store size={16} /> Vendor / Dealer
-          </h3>
-          <h4 className="text-lg font-bold text-text-primary">{dealer?.name || po.dealerName}</h4>
-          <p className="text-text-secondary text-sm">
-            {dealer?.category && <><Badge variant="default" className="mt-1 mb-2">{dealer.category}</Badge><br /></>}
-            Phone: {dealer?.phone}<br />
-            Email: {dealer?.email}
-          </p>
-        </div>
-
-        <table className="w-full mb-8">
-          <thead>
-            <tr className="bg-gray-50 border-y border-border">
-              <th className="py-3 px-4 text-left text-xs font-semibold text-text-secondary uppercase">Product</th>
-              <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Qty</th>
-              <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Unit Price</th>
-              <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {po.items && po.items.length > 0 ? (
-              po.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td className="py-4 px-4 text-sm text-text-primary font-medium">
-                    {item.productName}
-                  </td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right">{item.qty}</td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right">{formatCurrency(item.price)}</td>
-                  <td className="py-4 px-4 text-sm text-text-primary text-right font-medium">{formatCurrency(item.total)}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="4" className="py-8 text-center text-text-secondary italic">
-                  No items found for this order.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        <div className="flex justify-end">
-          <div className="w-72 space-y-3">
-            <div className="flex justify-between text-base font-bold text-text-primary border-b border-border pb-2">
-              <span>Total Amount</span>
-              <span>{formatCurrency(po.amount)}</span>
-            </div>
-
-            <div className="flex justify-between text-sm text-green-700 pt-1">
-              <span className="flex items-center gap-1"><CheckCircle size={14}/> Paid Amount</span>
-              <span>{formatCurrency(po.paidAmount)}</span>
-            </div>
-
-            {po.dueAmount > 0 && (
-              <div className="flex justify-between text-base font-bold text-red-600 bg-red-50 p-2 rounded-md border border-red-100 mt-2">
-                <span className="flex items-center gap-1"><AlertCircle size={16}/> Balance Due</span>
-                <span>{formatCurrency(po.dueAmount)}</span>
+      {activeTab === 'details' && (
+        <>
+          <Card className="p-8 print:shadow-none print:border-none mb-6">
+            <div className="flex justify-between items-start border-b border-border pb-8 mb-8">
+              <div>
+                <h2 className="text-3xl font-bold text-text-primary mb-2">PURCHASE ORDER</h2>
+                <p className="text-text-secondary"># {po.poNo}</p>
+                <p className="text-text-secondary">Date: {po.date}</p>
               </div>
-            )}
-          </div>
-        </div>
-      </Card>
+              <div className="text-right">
+                <h2 className="font-bold text-xl text-text-primary">Store Admin</h2>
+                <p className="text-text-secondary text-sm mt-1">
+                  123, Main Street, Anna Nagar<br />
+                  Chennai, Tamil Nadu - 600040
+                </p>
+              </div>
+            </div>
 
-      {/* Payment History Section */}
-      <Card className="overflow-hidden print:hidden">
-        <div className="p-4 border-b border-border bg-gray-50 flex items-center gap-2">
-          <FileText size={18} className="text-text-secondary" />
-          <h3 className="font-semibold text-text-primary">Payment History</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-text-secondary bg-white uppercase border-b border-border">
-              <tr>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Mode</th>
-                <th className="px-6 py-3">Notes / Ref</th>
-                <th className="px-6 py-3 text-right">Amount Paid</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {po.paymentHistory && po.paymentHistory.length > 0 ? (
-                po.paymentHistory.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-text-primary flex items-center gap-2">
-                      <Calendar size={14} className="text-text-secondary" />
-                      {payment.date}
-                    </td>
-                    <td className="px-6 py-4 text-text-secondary">{payment.mode}</td>
-                    <td className="px-6 py-4 text-text-secondary">{payment.notes || '-'}</td>
-                    <td className="px-6 py-4 text-right font-medium text-green-600">
-                      {formatCurrency(payment.amount)}
+            <div className="mb-8">
+              <h3 className="text-sm font-semibold text-text-secondary uppercase mb-2 flex items-center gap-2">
+                  <Store size={16} /> Vendor / Dealer
+              </h3>
+              <h4 className="text-lg font-bold text-text-primary">{dealer?.name || po.dealerName}</h4>
+              <p className="text-text-secondary text-sm">
+                {dealer?.category && <><Badge variant="default" className="mt-1 mb-2">{dealer.category}</Badge><br /></>}
+                Phone: {dealer?.phone}<br />
+                Email: {dealer?.email}
+              </p>
+            </div>
+
+            <table className="w-full mb-8">
+              <thead>
+                <tr className="bg-gray-50 border-y border-border">
+                  <th className="py-3 px-4 text-left text-xs font-semibold text-text-secondary uppercase">Product</th>
+                  <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Qty</th>
+                  <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Unit Price</th>
+                  <th className="py-3 px-4 text-right text-xs font-semibold text-text-secondary uppercase">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {po.items && po.items.length > 0 ? (
+                  po.items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="py-4 px-4 text-sm text-text-primary font-medium">
+                        {item.productName}
+                      </td>
+                      <td className="py-4 px-4 text-sm text-text-primary text-right">{item.qty}</td>
+                      <td className="py-4 px-4 text-sm text-text-primary text-right">{formatCurrency(item.price)}</td>
+                      <td className="py-4 px-4 text-sm text-text-primary text-right font-medium">{formatCurrency(item.total)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="py-8 text-center text-text-secondary italic">
+                      No items found for this order.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-text-secondary">
-                    No payments recorded yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                )}
+              </tbody>
+            </table>
+
+            <div className="flex justify-end">
+              <div className="w-72 space-y-3">
+                <div className="flex justify-between text-base font-bold text-text-primary border-b border-border pb-2">
+                  <span>Total Amount</span>
+                  <span>{formatCurrency(po.amount)}</span>
+                </div>
+
+                <div className="flex justify-between text-sm text-green-700 pt-1">
+                  <span className="flex items-center gap-1"><CheckCircle size={14}/> Paid Amount</span>
+                  <span>{formatCurrency(po.paidAmount)}</span>
+                </div>
+
+                {po.dueAmount > 0 && (
+                  <div className="flex justify-between text-base font-bold text-red-600 bg-red-50 p-2 rounded-md border border-red-100 mt-2">
+                    <span className="flex items-center gap-1"><AlertCircle size={16}/> Balance Due</span>
+                    <span>{formatCurrency(po.dueAmount)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Payment History Section */}
+          <Card className="overflow-hidden print:hidden">
+            <div className="p-4 border-b border-border bg-gray-50 flex items-center gap-2">
+              <FileText size={18} className="text-text-secondary" />
+              <h3 className="font-semibold text-text-primary">Payment History</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-text-secondary bg-white uppercase border-b border-border">
+                  <tr>
+                    <th className="px-6 py-3">Date</th>
+                    <th className="px-6 py-3">Mode</th>
+                    <th className="px-6 py-3">Notes / Ref</th>
+                    <th className="px-6 py-3 text-right">Amount Paid</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {po.paymentHistory && po.paymentHistory.length > 0 ? (
+                    po.paymentHistory.map((payment) => (
+                      <tr key={payment.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-text-primary flex items-center gap-2">
+                          <Calendar size={14} className="text-text-secondary" />
+                          {payment.date}
+                        </td>
+                        <td className="px-6 py-4 text-text-secondary">{payment.mode}</td>
+                        <td className="px-6 py-4 text-text-secondary">{payment.notes || '-'}</td>
+                        <td className="px-6 py-4 text-right font-medium text-green-600">
+                          {formatCurrency(payment.amount)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="px-6 py-8 text-center text-text-secondary">
+                        No payments recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* Received Items Tab Content */}
+      {activeTab === 'received' && (
+        !isReceived ? (
+          <Card className="p-12 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mb-4">
+              <ClipboardCheck size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-text-primary mb-2">Pending Check-in</h3>
+            <p className="text-text-secondary max-w-md mb-6">
+              This purchase order has not been received yet. Go to the Purchase Check-in module to verify quantities and update inventory.
+            </p>
+            <Button icon={ClipboardCheck} onClick={() => navigate(`/purchases/${po.id}`)}>
+              Go to Check-in
+            </Button>
+          </Card>
+        ) : (
+          <Card className={`overflow-hidden ${hasDiscrepancies ? 'border-orange-200' : ''}`}>
+            <div className={`p-4 border-b flex items-center gap-2 ${hasDiscrepancies ? 'border-orange-100 bg-orange-50 text-orange-800' : 'border-border bg-gray-50 text-text-primary'}`}>
+              {hasDiscrepancies ? <AlertTriangle size={18} /> : <PackageCheck size={18} />}
+              <h3 className="font-semibold">{hasDiscrepancies ? 'Check-in Discrepancies' : 'Check-in Details'}</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-text-secondary bg-white uppercase border-b border-border">
+                  <tr>
+                    <th className="px-6 py-3">Product</th>
+                    <th className="px-6 py-3 text-center">Ordered</th>
+                    <th className="px-6 py-3 text-center">Received</th>
+                    <th className="px-6 py-3 text-center">Difference</th>
+                    <th className="px-6 py-3">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {po.receivedItems?.map((item, idx) => {
+                    const diff = item.receivedQty - item.orderedQty;
+                    const isDiff = diff !== 0;
+                    return (
+                      <tr key={idx} className={`hover:bg-gray-50 ${isDiff ? 'bg-orange-50/30' : ''}`}>
+                        <td className="px-6 py-4 font-medium text-text-primary">
+                          {item.productName}
+                        </td>
+                        <td className="px-6 py-4 text-center text-text-secondary">
+                          {item.orderedQty}
+                        </td>
+                        <td className="px-6 py-4 text-center font-medium">
+                          {item.receivedQty}
+                        </td>
+                        <td className={`px-6 py-4 text-center font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-text-secondary'}`}>
+                          {diff > 0 ? `+${diff}` : diff === 0 ? '-' : diff}
+                        </td>
+                        <td className="px-6 py-4 text-text-secondary italic">
+                          {item.remarks ? `"${item.remarks}"` : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )
+      )}
 
       {/* Record Payment Modal */}
       <Modal

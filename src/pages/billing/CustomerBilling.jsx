@@ -114,8 +114,8 @@ export const CustomerBillingPage = () => {
           <h1 className="text-2xl font-bold text-text-primary">Customer Invoices</h1>
           <p className="text-text-secondary mt-1">Manage sales and billing for customers</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input 
               type="text" 
@@ -127,12 +127,12 @@ export const CustomerBillingPage = () => {
           </div>
           
           {/* Status Filter */}
-          <div className="flex items-center bg-white border border-border rounded-md px-2">
+          <div className="flex items-center bg-white border border-border rounded-md px-2 w-full sm:w-auto">
             <Filter size={16} className="text-text-secondary mr-2" />
             <select 
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              className="text-sm border-none focus:ring-0 py-2 text-text-primary bg-transparent cursor-pointer outline-none"
+              className="text-sm border-none focus:ring-0 py-2 text-text-primary bg-transparent cursor-pointer outline-none w-full"
             >
               <option value="All">All Status</option>
               <option value="Paid">Paid</option>
@@ -141,7 +141,7 @@ export const CustomerBillingPage = () => {
             </select>
           </div>
 
-          <Button icon={Plus} onClick={() => navigate('/billing/customer/add')}>New Invoice</Button>
+          <Button icon={Plus} onClick={() => navigate('/billing/customer/add')} className="w-full sm:w-auto">New Invoice</Button>
         </div>
       </div>
 

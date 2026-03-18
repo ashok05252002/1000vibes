@@ -6,17 +6,6 @@ import { useInventory } from '../context/InventoryContext';
 
 export const AuditLogsPage = () => {
   const { products } = useInventory();
-  // In a real app, we'd pull this from a global audit context. 
-  // For now, we'll simulate a global log by aggregating product logs + some system logs.
-  
-  // We need to access the internal auditLogs from context, 
-  // but currently context only exposes getProductLogs. 
-  // Let's assume we updated context to expose 'allAuditLogs' or we construct it here for demo.
-  // Since I can't see the hidden context update in this turn, I will simulate the data here 
-  // based on the pattern established in InventoryContext.
-  
-  // Note: In a real implementation, I would update InventoryContext to export `auditLogs` directly.
-  // For this demo, I will mock the "Global" view using the same structure.
   
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -81,18 +70,18 @@ export const AuditLogsPage = () => {
           <h1 className="text-2xl font-bold text-text-primary">Audit Logs</h1>
           <p className="text-text-secondary mt-1">Track all system activities and changes</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative hidden sm:block">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input 
               type="text" 
               placeholder="Search logs..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-64"
+              className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-64"
             />
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 border border-border rounded-md text-sm font-medium text-text-secondary hover:bg-gray-50">
+          <button className="flex items-center justify-center gap-2 px-3 py-2 border border-border rounded-md text-sm font-medium text-text-secondary hover:bg-gray-50 w-full sm:w-auto">
             <Filter size={16} />
             Filter
           </button>

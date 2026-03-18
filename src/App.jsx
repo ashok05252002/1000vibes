@@ -12,6 +12,8 @@ import { DealersPage } from './pages/Dealers';
 import { PurchaseOrdersPage } from './pages/PurchaseOrders'; 
 import { AddPurchaseOrderPage } from './pages/AddPurchaseOrder'; 
 import { PurchaseOrderViewPage } from './pages/PurchaseOrderView'; 
+import { PurchasesPage } from './pages/Purchases';
+import { PurchaseCheckInPage } from './pages/PurchaseCheckIn';
 import { InventoryPage } from './pages/Inventory';
 import { AddProductPage } from './pages/AddProduct';
 import { EditProductPage } from './pages/EditProduct';
@@ -58,6 +60,10 @@ function App() {
             <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
             <Route path="purchase-orders/add" element={<AddPurchaseOrderPage />} />
             <Route path="purchase-orders/:id" element={<PurchaseOrderViewPage />} />
+            
+            {/* Purchase Check-in Routes */}
+            <Route path="purchases" element={<PurchasesPage />} />
+            <Route path="purchases/:id" element={<PurchaseCheckInPage />} />
             
             {/* Inventory Routes */}
             <Route path="inventory" element={<InventoryPage />} />

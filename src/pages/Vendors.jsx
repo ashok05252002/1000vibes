@@ -82,18 +82,18 @@ export const VendorsPage = () => {
           <h1 className="text-2xl font-bold text-text-primary">Vendors</h1>
           <p className="text-text-secondary mt-1">Manage suppliers and payables</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative hidden sm:block">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
             <input 
               type="text" 
               placeholder="Search vendors..." 
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-64"
+              className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-64"
             />
           </div>
-          <Button icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Vendor</Button>
+          <Button icon={Plus} onClick={() => setIsAddModalOpen(true)} className="w-full sm:w-auto">Add Vendor</Button>
         </div>
       </div>
 

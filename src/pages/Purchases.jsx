@@ -1,42 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, ShoppingBag, AlertTriangle } from 'lucide-react';
+import { Search, ClipboardCheck, PackageCheck, AlertTriangle } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
-import { formatCurrency } from '../lib/utils';
 import { useInventory } from '../context/InventoryContext';
 
-export const PurchaseOrdersPage = () => {
+export const PurchasesPage = () => {
   const navigate = useNavigate();
   const { purchaseOrders } = useInventory();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('All'); // All, Pending, Received, Received with Changes
+  const [statusFilter, setStatusFilter] = useState('Pending'); // Default to Pending for check-in
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const filteredOrders = purchaseOrders.filter(po => {
-    const matchesSearch = po.poNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          po.dealerName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = 
+      po.poNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      po.dealerName.toLowerCase().includes(searchQuery.toLowerCase());
     
-    let matchesTab = false;
-    if (activeTab === 'All') {
-        matchesTab = true;
-    } else if (activeTab === 'Pending') {
-        matchesTab = po.status === 'Pending';
-    } else if (activeTab === 'Received') {
-        matchesTab = po.status === 'Received';
-    } else if (activeTab === 'Received with Changes') {
-        matchesTab = po.status === 'Received' && po.receivedItems?.some(item => item.receivedQty !== item.orderedQty);
+    let matchesStatus = false;
+    if (statusFilter === 'All') {
+        matchesStatus = true;
+    } else if (statusFilter === 'Pending') {
+        matchesStatus = po.status === 'Pending';
+    } else if (statusFilter === 'Received') {
+        matchesStatus = po.status === 'Received';
+    } else if (statusFilter === 'Received with Changes') {
+        matchesStatus = po.status === 'Received' && po.receivedItems?.some(i => i.receivedQty !== i.orderedQty);
     }
-    
-    return matchesSearch && matchesTab;
+
+    return matchesSearch && matchesStatus;
   });
 
-  // Pagination Logic
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = filteredOrders.slice(
     (currentPage - 1) * itemsPerPage,
@@ -47,8 +45,8 @@ export const PurchaseOrdersPage = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Purchase Orders</h1>
-          <p className="text-text-secondary mt-1">Manage orders placed with dealers</p>
+          <h1 className="text-2xl font-bold text-text-primary">Purchase Check-in</h1>
+          <p className="text-text-secondary mt-1">Verify received quantities against purchase orders</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2 sm:mt-0">
           <div className="relative w-full sm:w-auto">
@@ -61,29 +59,16 @@ export const PurchaseOrdersPage = () => {
               className="pl-10 pr-4 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-64"
             />
           </div>
-          <Button icon={Plus} onClick={() => navigate('/purchase-orders/add')} className="w-full sm:w-auto">New Purchase Order</Button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-border">
-        <div className="flex gap-6 overflow-x-auto">
-          {['All', 'Pending', 'Received', 'Received with Changes'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                activeTab === tab 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {tab === 'All' ? 'All Orders' : 
-               tab === 'Pending' ? 'Pending Check-in' : 
-               tab === 'Received' ? 'Received (All)' : 
-               <><AlertTriangle size={14} /> Received with Changes</>}
-            </button>
-          ))}
+          <select 
+            className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white w-full sm:w-auto"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          >
+            <option value="Pending">Pending Check-in</option>
+            <option value="Received">Already Received (All)</option>
+            <option value="Received with Changes">Received with Changes</option>
+            <option value="All">All Orders</option>
+          </select>
         </div>
       </div>
 
@@ -95,11 +80,9 @@ export const PurchaseOrdersPage = () => {
                 <th className="px-6 py-3">Date</th>
                 <th className="px-6 py-3">PO #</th>
                 <th className="px-6 py-3">Dealer</th>
-                <th className="px-6 py-3 text-right">Total Amount</th>
-                <th className="px-6 py-3 text-right">Balance Due</th>
-                <th className="px-6 py-3 text-center">Payment Status</th>
-                <th className="px-6 py-3 text-center">Order Status</th>
-                <th className="px-6 py-3 text-right">Actions</th>
+                <th className="px-6 py-3 text-center">Total Items</th>
+                <th className="px-6 py-3 text-center">Status</th>
+                <th className="px-6 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -108,8 +91,7 @@ export const PurchaseOrdersPage = () => {
                 return (
                   <tr 
                     key={po.id} 
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                    className="hover:bg-gray-50 transition-colors"
                   >
                     <td className="px-6 py-4 text-text-primary whitespace-nowrap">
                       {po.date}
@@ -120,21 +102,8 @@ export const PurchaseOrdersPage = () => {
                     <td className="px-6 py-4 font-medium text-text-primary">
                       {po.dealerName}
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">
-                      {formatCurrency(po.amount)}
-                    </td>
-                    <td className={`px-6 py-4 text-right font-bold ${po.dueAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(po.dueAmount)}
-                    </td>
                     <td className="px-6 py-4 text-center">
-                      <Badge 
-                        variant={
-                          po.paymentStatus === 'Paid' ? 'success' : 
-                          po.paymentStatus === 'Partial' ? 'warning' : 'danger'
-                        }
-                      >
-                        {po.paymentStatus}
-                      </Badge>
+                      {po.items.reduce((sum, item) => sum + item.qty, 0)} units
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -147,23 +116,33 @@ export const PurchaseOrdersPage = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                        <button 
-                          className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" 
-                          title="View"
-                          onClick={() => navigate(`/purchase-orders/${po.id}`)}
-                        >
-                          <Eye size={16} />
-                        </button>
-                      </div>
+                      {po.status === 'Pending' ? (
+                          <Button 
+                              size="sm" 
+                              icon={ClipboardCheck}
+                              onClick={() => navigate(`/purchases/${po.id}`)}
+                          >
+                              Check In
+                          </Button>
+                      ) : (
+                          <Button 
+                              size="sm" 
+                              variant="secondary"
+                              icon={PackageCheck}
+                              onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                          >
+                              View Details
+                          </Button>
+                      )}
                     </td>
                   </tr>
                 );
               })}
               {paginatedOrders.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-text-secondary">
-                    No purchase orders found.
+                  <td colSpan="6" className="px-6 py-12 text-center text-text-secondary">
+                    <ClipboardCheck size={32} className="mx-auto mb-3 opacity-20" />
+                    No purchase orders found matching your criteria.
                   </td>
                 </tr>
               )}

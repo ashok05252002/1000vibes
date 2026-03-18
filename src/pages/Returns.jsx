@@ -11,7 +11,7 @@ import { useInventory } from '../context/InventoryContext';
 
 export const ReturnsPage = () => {
   const navigate = useNavigate();
-  const { returns, processReturn } = useInventory();
+  const { returns, processReturn, products } = useInventory();
   
   // UI State
   const [activeTab, setActiveTab] = useState('All'); // All, Pending, Restocked, Damaged
@@ -71,9 +71,15 @@ export const ReturnsPage = () => {
     setIsProcessModalOpen(true);
   };
 
+  // --- Financial Calculations for Modal ---
+  const selectedProduct = products.find(p => p.id === selectedReturn?.productId);
+  const inPrice = selectedProduct?.inPrice || 0;
+  const inventoryValue = inPrice * (selectedReturn?.qty || 0);
+  const marginLoss = Math.max(0, (selectedReturn?.refundAmount || 0) - inventoryValue);
+
   const confirmProcess = () => {
     if (selectedReturn && processAction) {
-      processReturn(selectedReturn.id, processAction);
+      processReturn(selectedReturn.id, processAction, marginLoss);
     }
     setIsProcessModalOpen(false);
     setSelectedReturn(null);
@@ -277,6 +283,36 @@ export const ReturnsPage = () => {
                         : 'This will log the item as damaged and will NOT be added back to active stock.'}
                 </p>
             </div>
+
+            {/* Financial Impact Details for Restock */}
+            {processAction === 'Restock' && selectedReturn && (
+                <div className="mt-4 bg-white border border-border rounded-md p-4 space-y-3 text-sm">
+                    <h5 className="font-semibold text-text-primary border-b border-border pb-2 mb-2">Restock Financial Impact</h5>
+                    
+                    <div className="flex justify-between items-center">
+                        <span className="text-text-secondary">Original Refund Amount:</span>
+                        <span className="font-medium">{formatCurrency(selectedReturn.refundAmount)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                        <span className="text-text-secondary">
+                          Current Purchase Price ({formatCurrency(inPrice)} × {selectedReturn.qty}):
+                        </span>
+                        <span className="font-medium text-green-600">+{formatCurrency(inventoryValue)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center border-t border-border pt-3 mt-1">
+                        <span className="font-semibold text-text-primary">Net Margin Loss:</span>
+                        <span className="font-bold text-red-600">{formatCurrency(marginLoss)}</span>
+                    </div>
+                    
+                    {marginLoss > 0 && (
+                      <p className="text-xs text-text-muted mt-2 pt-2 border-t border-gray-100 italic">
+                          * The margin loss of {formatCurrency(marginLoss)} will be automatically recorded in Expenses under the "Return Margin Loss" category.
+                      </p>
+                    )}
+                </div>
+            )}
 
             <div className="pt-4 flex gap-3">
                 <Button variant="secondary" className="flex-1" onClick={() => setIsProcessModalOpen(false)}>Cancel</Button>
