@@ -21,7 +21,7 @@ export const EXPENSE_CATEGORIES = [
   'Maintenance',
   'Internet',
   'Refreshments',
-  'Return Margin Loss', // Added new category for return losses
+  'Return Margin Loss',
   'Miscellaneous'
 ];
 
@@ -36,8 +36,6 @@ export const PERMISSIONS_LIST = [
   { id: 'users_manage', label: 'Manage Users & Roles' },
   { id: 'settings_access', label: 'System Settings' }
 ];
-
-// --- Initial Data Generators ---
 
 const generateInventory = (count) => {
   return Array.from({ length: count }).map(() => {
@@ -202,15 +200,14 @@ const generatePurchaseOrders = (count, dealers) => {
         });
     }
 
-    // Generate received items if the status is 'Received'
     let receivedItems = [];
     if (status === 'Received') {
         receivedItems = items.map(item => {
-            const hasDiff = Math.random() > 0.7; // 30% chance of discrepancy
+            const hasDiff = Math.random() > 0.7;
             let diff = 0;
             if (hasDiff) {
                 diff = faker.number.int({ min: -2, max: 2 });
-                if (diff === 0) diff = -1; // Ensure a difference if hasDiff is true
+                if (diff === 0) diff = -1;
             }
             const receivedQty = Math.max(0, item.qty + diff);
             return {
@@ -255,7 +252,7 @@ const generateExpenses = (count) => {
       description: faker.lorem.sentence(3),
       paymentMode: faker.helpers.arrayElement(['Cash', 'UPI', 'Bank Transfer', 'Card']),
       recordedBy: 'Admin User',
-      reflectInDailyClosing: faker.datatype.boolean(0.8) // 80% chance to be true
+      reflectInDailyClosing: faker.datatype.boolean(0.8)
     };
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
@@ -320,7 +317,6 @@ const generateReturns = (count, invoices) => {
 };
 
 export const InventoryProvider = ({ children }) => {
-  // --- State ---
   const [roles, setRoles] = useState(() => generateRoles());
   const [products, setProducts] = useState(() => generateInventory(60));
   const [customers, setCustomers] = useState(() => generateCustomers(45));
@@ -336,7 +332,6 @@ export const InventoryProvider = ({ children }) => {
   
   const [stockMovements, setStockMovements] = useState(() => generateStockMovements(products));
 
-  // --- Unified Ledger (Transactions) ---
   const [transactions, setTransactions] = useState(() => {
     let txs = [];
     invoices.forEach(inv => {
@@ -354,7 +349,6 @@ export const InventoryProvider = ({ children }) => {
             });
         }
     });
-    // Add dummy returns to ledger
     returns.forEach(ret => {
         txs.push({ id: faker.string.uuid(), date: ret.date, type: 'Expense', category: 'Customer Return', amount: ret.refundAmount, mode: 'Cash', description: `Refund for Inv ${ret.invoiceNo}` });
     });
@@ -383,7 +377,6 @@ export const InventoryProvider = ({ children }) => {
   
   const [auditLogs, setAuditLogs] = useState([]);
 
-  // --- Helper: Audit Logging ---
   const logAction = (entityId, module, action, details, user = 'Admin User', changes = []) => {
     const newLog = {
       id: faker.string.uuid(),
@@ -399,7 +392,6 @@ export const InventoryProvider = ({ children }) => {
     setAuditLogs(prev => [newLog, ...prev]);
   };
 
-  // --- Actions: Roles & Users ---
   const addRole = (role) => {
     setRoles(prev => [...prev, role]);
     logAction(role.id, 'Roles', 'Create', `Created new role: ${role.name}`);
@@ -410,7 +402,6 @@ export const InventoryProvider = ({ children }) => {
     logAction(user.id, 'Users', 'Create', `Created new user: ${user.name}`);
   };
 
-  // --- Actions: Products ---
   const addProduct = (product) => {
     setProducts((prev) => [product, ...prev]);
     setStockMovements(prev => [{
@@ -498,7 +489,6 @@ export const InventoryProvider = ({ children }) => {
     return products.some(p => p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== excludeId);
   };
 
-  // --- Actions: Customers ---
   const addCustomer = (customer) => {
     setCustomers(prev => [customer, ...prev]);
     logAction(customer.id, 'Customer', 'Create', `Added new customer ${customer.name}`);
@@ -513,7 +503,6 @@ export const InventoryProvider = ({ children }) => {
       return c;
     }));
 
-    // Log to unified transactions ledger
     setTransactions(prev => [{
         id: faker.string.uuid(),
         date: new Date().toISOString().split('T')[0],
@@ -527,7 +516,6 @@ export const InventoryProvider = ({ children }) => {
     logAction(customerId, 'Credits', 'Payment', `Received payment of ₹${amount} via ${mode}. Notes: ${notes}`);
   };
 
-  // --- Actions: Vendors & Dealers ---
   const addVendor = (vendor) => {
     setVendors(prev => [vendor, ...prev]);
     logAction(vendor.id, 'Vendor', 'Create', `Added new vendor ${vendor.company}`);
@@ -538,7 +526,6 @@ export const InventoryProvider = ({ children }) => {
     logAction(dealer.id, 'Dealer', 'Create', `Added new dealer ${dealer.name}`);
   };
 
-  // --- Actions: Purchase Orders ---
   const addPurchaseOrder = (po) => {
     const finalPO = {
         ...po,
@@ -546,18 +533,16 @@ export const InventoryProvider = ({ children }) => {
         receivedItems: []
     };
 
-    // If there's an initial paid amount, record it in history and transactions
     if (finalPO.paidAmount > 0 && finalPO.paymentHistory.length === 0) {
         const paymentId = faker.string.uuid();
         finalPO.paymentHistory.push({
             id: paymentId,
             date: finalPO.date,
             amount: finalPO.paidAmount,
-            mode: 'Cash', // Default assumption for initial payment if not specified
+            mode: 'Cash', 
             notes: 'Initial Payment'
         });
 
-        // Log to unified transactions ledger
         setTransactions(prev => [{
             id: paymentId,
             date: finalPO.date,
@@ -571,7 +556,6 @@ export const InventoryProvider = ({ children }) => {
 
     setPurchaseOrders(prev => [finalPO, ...prev]);
     
-    // Update Dealer Balance if there is a due amount
     if (finalPO.dealerId && finalPO.dueAmount > 0) {
       setDealers(prev => prev.map(d => {
         if (d.id === finalPO.dealerId) {
@@ -602,7 +586,6 @@ export const InventoryProvider = ({ children }) => {
                 notes
             };
 
-            // Update Dealer Balance (reduce payable amount)
             if (po.dealerId) {
                 setDealers(dPrev => dPrev.map(d => {
                     if (d.id === po.dealerId) {
@@ -612,7 +595,6 @@ export const InventoryProvider = ({ children }) => {
                 }));
             }
 
-            // Log to unified transactions ledger
             setTransactions(txPrev => [{
                 id: newPayment.id,
                 date: newPayment.date,
@@ -638,7 +620,6 @@ export const InventoryProvider = ({ children }) => {
   };
 
   const checkInPurchaseOrder = (poId, receivedItems, user = 'Admin User') => {
-    // 1. Update PO Status and save received items
     setPurchaseOrders(prev => prev.map(po => {
         if (po.id === poId) {
             return { ...po, status: 'Received', receivedItems };
@@ -646,7 +627,6 @@ export const InventoryProvider = ({ children }) => {
         return po;
     }));
 
-    // 2. Update Stock & Log Movement
     receivedItems.forEach(item => {
         if (item.receivedQty > 0) {
             setProducts(prev => prev.map(p => {
@@ -656,7 +636,6 @@ export const InventoryProvider = ({ children }) => {
                 return p;
             }));
 
-            // Log stock movement
             setStockMovements(prev => [{
                 id: faker.string.uuid(),
                 productId: item.productId,
@@ -672,7 +651,6 @@ export const InventoryProvider = ({ children }) => {
     logAction(poId, 'Purchase Check-in', 'Check-in', `Checked in PO ${poId}`, user);
   };
 
-  // --- Actions: Invoices ---
   const addInvoice = (invoice) => {
     const paidAmount = invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.status === 'Paid' ? invoice.amount : 0);
     const dueAmount = invoice.amount - paidAmount;
@@ -697,15 +675,40 @@ export const InventoryProvider = ({ children }) => {
     
     // Log to unified transactions ledger if payment was made
     if (paidAmount > 0) {
-        setTransactions(prev => [{
-            id: faker.string.uuid(),
-            date: finalInvoice.date,
-            type: 'Income',
-            category: 'Sales',
-            amount: paidAmount,
-            mode: finalInvoice.paymentMode || 'Cash',
-            description: `Invoice ${finalInvoice.invoiceNo}`
-        }, ...prev]);
+        if (finalInvoice.paymentMode === 'Mixed' && finalInvoice.mixedBreakdown) {
+            if (finalInvoice.mixedBreakdown.cash > 0) {
+                setTransactions(prev => [{
+                    id: faker.string.uuid(),
+                    date: finalInvoice.date,
+                    type: 'Income',
+                    category: 'Sales',
+                    amount: finalInvoice.mixedBreakdown.cash,
+                    mode: 'Cash',
+                    description: `Invoice ${finalInvoice.invoiceNo} (Cash part)`
+                }, ...prev]);
+            }
+            if (finalInvoice.mixedBreakdown.online > 0) {
+                setTransactions(prev => [{
+                    id: faker.string.uuid(),
+                    date: finalInvoice.date,
+                    type: 'Income',
+                    category: 'Sales',
+                    amount: finalInvoice.mixedBreakdown.online,
+                    mode: 'UPI', 
+                    description: `Invoice ${finalInvoice.invoiceNo} (Online part)`
+                }, ...prev]);
+            }
+        } else {
+            setTransactions(prev => [{
+                id: faker.string.uuid(),
+                date: finalInvoice.date,
+                type: 'Income',
+                category: 'Sales',
+                amount: paidAmount,
+                mode: finalInvoice.paymentMode || 'Cash',
+                description: `Invoice ${finalInvoice.invoiceNo}`
+            }, ...prev]);
+        }
     }
 
     if (finalInvoice.customerId && dueAmount > 0) {
@@ -752,12 +755,11 @@ export const InventoryProvider = ({ children }) => {
   const addExpense = (expense) => {
     setExpenses(prev => [expense, ...prev]);
     
-    // Log to unified transactions ledger
     setTransactions(prev => [{
         id: faker.string.uuid(),
         date: expense.date,
         type: 'Expense',
-        category: expense.category, // Use the provided category
+        category: expense.category, 
         amount: expense.amount,
         mode: expense.paymentMode || 'Cash',
         description: expense.description || expense.category
@@ -769,7 +771,6 @@ export const InventoryProvider = ({ children }) => {
   const addDailyClosing = (closingData) => {
     setDailyClosings(prev => [closingData, ...prev]);
     
-    // If there is a discrepancy, log it as an adjustment transaction
     if (closingData.discrepancy !== 0) {
         setTransactions(prev => [{
             id: faker.string.uuid(),
@@ -785,19 +786,17 @@ export const InventoryProvider = ({ children }) => {
     logAction(closingData.id, 'Closing', 'Create', `Performed Daily Closing for ${closingData.date}`);
   };
 
-  // --- Actions: Returns ---
   const addReturn = (returnData) => {
     setReturns(prev => [returnData, ...prev]);
     
-    // Log the refund in transactions
     if (returnData.refundAmount > 0) {
         setTransactions(prev => [{
             id: faker.string.uuid(),
             date: returnData.date,
-            type: 'Expense', // Refund is money out
+            type: 'Expense', 
             category: 'Customer Return',
             amount: returnData.refundAmount,
-            mode: 'Cash', // Defaulting to cash for refunds
+            mode: 'Cash', 
             description: `Refund for Inv ${returnData.invoiceNo}`
         }, ...prev]);
     }
@@ -810,7 +809,6 @@ export const InventoryProvider = ({ children }) => {
     if (!ret) return;
 
     if (action === 'Restock') {
-        // Add back to inventory
         setProducts(prev => prev.map(p => {
             if (p.id === ret.productId) {
                 return { ...p, stock: p.stock + ret.qty };
@@ -828,7 +826,6 @@ export const InventoryProvider = ({ children }) => {
             user: 'Admin User'
         }, ...prev]);
 
-        // Log Margin Loss to Expenses if applicable
         if (marginLoss > 0) {
             const expenseId = faker.string.uuid();
             const newExpense = {
@@ -839,11 +836,10 @@ export const InventoryProvider = ({ children }) => {
                 description: `Margin loss for restocking returned item: ${ret.productName} (Inv ${ret.invoiceNo})`,
                 paymentMode: 'System Adjustment',
                 recordedBy: 'System',
-                reflectInDailyClosing: false // It's a paper loss, not cash missing from drawer
+                reflectInDailyClosing: false 
             };
             setExpenses(prev => [newExpense, ...prev]);
             
-            // Log to unified transactions ledger
             setTransactions(prev => [{
                 id: expenseId,
                 date: newExpense.date,
@@ -856,7 +852,6 @@ export const InventoryProvider = ({ children }) => {
         }
 
     } else if (action === 'Damage') {
-        // Do not add to inventory, just log as damage
         setStockMovements(prev => [{
             id: faker.string.uuid(),
             productId: ret.productId,
@@ -868,7 +863,6 @@ export const InventoryProvider = ({ children }) => {
         }, ...prev]);
     }
 
-    // Update return status
     setReturns(prev => prev.map(r => r.id === returnId ? { ...r, status: action === 'Restock' ? 'Restocked' : 'Damaged' } : r));
     logAction(returnId, 'Returns', 'Update', `Marked return as ${action}`);
   };
@@ -891,7 +885,7 @@ export const InventoryProvider = ({ children }) => {
       dailyClosings, addDailyClosing,
       returns, addReturn, processReturn,
       transactions,
-      stockMovements, // Exported to access global stock history
+      stockMovements, 
       auditLogs
     }}>
       {children}

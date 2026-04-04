@@ -14,8 +14,8 @@ export const BillingPOS = () => {
   const { products, customers, addInvoice, addCustomer, addProduct, checkDuplicateName } = useInventory();
   
   // UI State
-  const [inputValue, setInputValue] = useState(''); // Raw input for product search
-  const [searchQuery, setSearchQuery] = useState(''); // Actual query used for filtering products
+  const [inputValue, setInputValue] = useState(''); 
+  const [searchQuery, setSearchQuery] = useState(''); 
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
@@ -26,8 +26,8 @@ export const BillingPOS = () => {
   const searchInputRef = useRef(null);
   
   // Customer Search State
-  const [customerInputValue, setCustomerInputValue] = useState(''); // Raw input for customer search
-  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // Actual query used for filtering customers
+  const [customerInputValue, setCustomerInputValue] = useState(''); 
+  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); 
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const customerDropdownRef = useRef(null);
 
@@ -40,6 +40,10 @@ export const BillingPOS = () => {
   // Checkout Modal State
   const [paymentType, setPaymentType] = useState('Full'); // 'Full' or 'Partial'
   const [tenderedAmount, setTenderedAmount] = useState('');
+  
+  // Mixed Payment State
+  const [mixedCashAmount, setMixedCashAmount] = useState('');
+  const [mixedOnlineAmount, setMixedOnlineAmount] = useState('');
 
   // --- Add Product Modal State ---
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -67,6 +71,16 @@ export const BillingPOS = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const cartTotal = cart.reduce((acc, item) => acc + item.total, 0);
+
+  // Reset mixed amounts when opening modal or changing payment type
+  useEffect(() => {
+    if (paymentMode === 'Mixed' && paymentType === 'Full') {
+      setMixedCashAmount('');
+      setMixedOnlineAmount(cartTotal.toString());
+    }
+  }, [paymentMode, paymentType, cartTotal, isCheckoutModalOpen]);
+
   // Filter Products
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -77,27 +91,20 @@ export const BillingPOS = () => {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // Filter Customers (Enhanced for Phone Number Search)
+  // Filter Customers
   const filteredCustomers = useMemo(() => {
     if (!customerSearchTerm) return customers.slice(0, 5);
     
     const term = customerSearchTerm.toLowerCase();
-    const searchDigits = term.replace(/\D/g, ''); // Extract digits from search term
+    const searchDigits = term.replace(/\D/g, ''); 
 
     return customers.filter(c => {
-      // 1. Name Match
       if (c.name.toLowerCase().includes(term)) return true;
-      
-      // 2. Exact Phone Match (substring)
       if (c.phone.includes(customerSearchTerm)) return true;
-
-      // 3. Robust Phone Match (ignoring spaces/formatting)
-      // Only perform if user typed at least 3 digits to avoid too many matches on "1" or "9"
       if (searchDigits.length > 2) {
         const phoneDigits = c.phone.replace(/\D/g, '');
         if (phoneDigits.includes(searchDigits)) return true;
       }
-
       return false;
     });
   }, [customers, customerSearchTerm]);
@@ -109,9 +116,6 @@ export const BillingPOS = () => {
   const handleSearchInput = (e) => {
     const value = e.target.value;
     setInputValue(value);
-    
-    // Desktop behavior: Search as you type
-    // Mobile behavior: Wait for button click (handled by handleMobileSearch)
     if (window.innerWidth >= 768) {
       setSearchQuery(value);
     }
@@ -189,24 +193,50 @@ export const BillingPOS = () => {
       return alert(`Price for ${priceErrors[0].name} is below minimum (${formatCurrency(priceErrors[0].minPrice)})`);
     }
 
-    // Reset checkout state
     setPaymentType('Full');
     setTenderedAmount('');
     setIsCheckoutModalOpen(true);
   };
 
-  const cartTotal = cart.reduce((acc, item) => acc + item.total, 0);
+  // Mixed Payment Input Handlers
+  const handleMixedCashChange = (val) => {
+    setMixedCashAmount(val);
+    if (paymentType === 'Full') {
+      const cash = parseFloat(val) || 0;
+      setMixedOnlineAmount(Math.max(0, cartTotal - cash).toString());
+    }
+  };
+
+  const handleMixedOnlineChange = (val) => {
+    setMixedOnlineAmount(val);
+    if (paymentType === 'Full') {
+      const online = parseFloat(val) || 0;
+      setMixedCashAmount(Math.max(0, cartTotal - online).toString());
+    }
+  };
 
   const processInvoice = (shouldPrint) => {
     const customer = customers.find(c => c.id === selectedCustomerId);
     const invoiceId = faker.string.uuid();
     
-    // Determine Paid Amount
     let finalPaidAmount = 0;
-    if (paymentType === 'Full') {
-        finalPaidAmount = cartTotal;
+    let mixedBreakdown = null;
+
+    if (paymentMode === 'Mixed') {
+      const cash = parseFloat(mixedCashAmount) || 0;
+      const online = parseFloat(mixedOnlineAmount) || 0;
+      finalPaidAmount = cash + online;
+      mixedBreakdown = { cash, online };
+
+      if (paymentType === 'Full' && Math.abs(finalPaidAmount - cartTotal) > 0.01) {
+        return alert('Mixed amounts must equal the total bill amount for Full Payment.');
+      }
     } else {
-        finalPaidAmount = parseFloat(tenderedAmount) || 0;
+      if (paymentType === 'Full') {
+          finalPaidAmount = cartTotal;
+      } else {
+          finalPaidAmount = parseFloat(tenderedAmount) || 0;
+      }
     }
 
     const invoice = {
@@ -217,8 +247,8 @@ export const BillingPOS = () => {
       customerName: customer.name,
       amount: cartTotal,
       paidAmount: finalPaidAmount,
-      // status will be calculated in context based on paidAmount vs amount
       paymentMode: paymentMode,
+      mixedBreakdown: mixedBreakdown,
       items: cart.map(item => ({
         id: faker.string.uuid(),
         productId: item.productId,
@@ -233,10 +263,8 @@ export const BillingPOS = () => {
     addInvoice(invoice);
 
     if (shouldPrint) {
-      // Redirect to Invoice View Page for printing
       navigate(`/billing/customer/${invoiceId}`);
     } else {
-      // Stay here, clear cart, show success
       setIsCheckoutModalOpen(false);
       setIsMobileCartOpen(false);
 
@@ -250,6 +278,8 @@ export const BillingPOS = () => {
       setInputValue('');
       setPaymentType('Full');
       setTenderedAmount('');
+      setMixedCashAmount('');
+      setMixedOnlineAmount('');
 
       setSuccessMessage(`Invoice ${invoice.invoiceNo} saved successfully!`);
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -260,8 +290,6 @@ export const BillingPOS = () => {
   const handleCustomerInput = (e) => {
     const value = e.target.value;
     setCustomerInputValue(value);
-    
-    // Desktop: Search immediately
     if (window.innerWidth >= 768) {
         setCustomerSearchTerm(value);
         setIsCustomerDropdownOpen(true);
@@ -319,7 +347,7 @@ export const BillingPOS = () => {
   // --- Add Product Handlers ---
   const handleOpenAddProduct = () => {
     setNewProduct({
-      name: inputValue, // Pre-fill with whatever they searched for
+      name: inputValue,
       sku: 'SKU-' + faker.string.alphanumeric(6).toUpperCase(),
       category: '',
       initialStock: '',
@@ -335,11 +363,9 @@ export const BillingPOS = () => {
 
   const handleQuickAddProduct = (e) => {
     e.preventDefault();
-    
     if (!newProduct.name || !newProduct.category || !newProduct.inPrice || !newProduct.customerPrice || !newProduct.initialStock) {
       return alert('Please fill all required fields');
     }
-
     if (checkDuplicateName(newProduct.name)) {
       return alert('Product Name already exists in inventory.');
     }
@@ -362,10 +388,7 @@ export const BillingPOS = () => {
     };
 
     addProduct(createdProduct);
-    
-    // Auto-select the newly created product into the cart
     addToCart(createdProduct);
-    
     setIsAddProductModalOpen(false);
     setInputValue('');
     setSearchQuery('');
@@ -374,7 +397,6 @@ export const BillingPOS = () => {
   // --- Cart Content Render Logic ---
   const renderCartContent = () => (
     <div className="flex flex-col h-full">
-      {/* Cart Header */}
       <div className="p-4 border-b border-border bg-gray-50 shrink-0">
         <div className="relative mb-3" ref={customerDropdownRef}>
           <div className="flex gap-2">
@@ -388,7 +410,6 @@ export const BillingPOS = () => {
                 onChange={handleCustomerInput}
                 onKeyDown={(e) => e.key === 'Enter' && handleMobileCustomerSearch()}
                 onFocus={() => {
-                   // On desktop, ensure dropdown opens on focus if there is a term
                    if (window.innerWidth >= 768 && customerInputValue) {
                        setIsCustomerDropdownOpen(true);
                    }
@@ -408,7 +429,6 @@ export const BillingPOS = () => {
                   </button>
               )}
             </div>
-            {/* Mobile Search Button for Customer */}
             <button 
               className="md:hidden bg-primary text-white p-2 rounded-lg hover:bg-primary-hover transition-colors shadow-sm flex items-center justify-center min-w-[40px]"
               onClick={handleMobileCustomerSearch}
@@ -467,7 +487,6 @@ export const BillingPOS = () => {
         </div>
       </div>
 
-      {/* Cart Items */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-white">
         {cart.length > 0 ? (
           cart.map((item) => (
@@ -481,7 +500,6 @@ export const BillingPOS = () => {
                   <span className="text-sm font-bold text-text-primary">{formatCurrency(item.total)}</span>
                 </div>
                 
-                {/* Price Difference Display */}
                 {item.price < item.standardPrice && (
                     <div className="flex items-center gap-1 text-[10px] text-red-500 mb-1">
                         <span className="line-through text-gray-400">{formatCurrency(item.standardPrice)}</span>
@@ -520,7 +538,6 @@ export const BillingPOS = () => {
         )}
       </div>
 
-      {/* Footer Totals */}
       <div className="p-5 bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.05)] shrink-0">
         <div className="space-y-2 mb-4">
           <div className="flex justify-between text-sm text-text-secondary">
@@ -534,7 +551,7 @@ export const BillingPOS = () => {
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-4">
-            {['Cash', 'UPI', 'Card'].map(mode => (
+            {['Cash', 'UPI', 'Mixed'].map(mode => (
             <button
               key={mode}
               onClick={() => setPaymentMode(mode)}
@@ -564,7 +581,6 @@ export const BillingPOS = () => {
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col overflow-hidden bg-gray-100 -m-4 lg:-m-8 relative">
       
-      {/* Success Toast */}
       {successMessage && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-5">
           <CheckCircle size={20} />
@@ -572,7 +588,6 @@ export const BillingPOS = () => {
         </div>
       )}
 
-      {/* Top Bar: Search, Barcode & Add Product */}
       <div className="bg-white border-b border-border px-4 py-3 flex flex-col md:flex-row items-center gap-3 shrink-0 z-10">
         <div className="w-full md:flex-1 flex gap-2">
           <div className="relative flex-1">
@@ -587,7 +602,6 @@ export const BillingPOS = () => {
               className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 bg-gray-50 focus:bg-white transition-colors"
             />
           </div>
-          {/* Mobile Search Button */}
           <button 
             className="md:hidden bg-primary text-white p-2 rounded-lg hover:bg-primary-hover transition-colors shadow-sm flex items-center justify-center min-w-[40px]"
             onClick={handleMobileSearch}
@@ -608,7 +622,6 @@ export const BillingPOS = () => {
             />
           </form>
           
-          {/* Add Product Button */}
           <Button 
             icon={Plus} 
             onClick={handleOpenAddProduct} 
@@ -621,7 +634,6 @@ export const BillingPOS = () => {
 
       <div className="flex-1 flex overflow-hidden relative">
         
-        {/* LEFT: Categories Sidebar */}
         <div className="hidden lg:flex w-20 xl:w-64 bg-white border-r border-border flex-col overflow-y-auto custom-scrollbar shrink-0">
           <button 
             onClick={() => setSelectedCategory('All')}
@@ -647,9 +659,7 @@ export const BillingPOS = () => {
           ))}
         </div>
 
-        {/* MAIN: Product Grid */}
         <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Mobile Categories */}
             <div className="lg:hidden bg-white border-b border-border overflow-x-auto flex items-center gap-2 p-2 shrink-0 no-scrollbar">
                 <button 
                     onClick={() => setSelectedCategory('All')}
@@ -705,12 +715,10 @@ export const BillingPOS = () => {
             </div>
         </div>
 
-        {/* RIGHT: Cart Sidebar (Desktop) */}
         <div className="hidden lg:flex w-96 bg-white border-l border-border flex-col shadow-xl shrink-0 z-20">
             {renderCartContent()}
         </div>
 
-        {/* MOBILE: Bottom Cart Bar */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.1)] p-3 z-30">
             <div className="flex items-center gap-3">
                 <div className="flex-1">
@@ -727,7 +735,6 @@ export const BillingPOS = () => {
             </div>
         </div>
 
-        {/* MOBILE: Cart Drawer */}
         {isMobileCartOpen && (
             <div className="lg:hidden fixed inset-0 z-50 flex flex-col">
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileCartOpen(false)} />
@@ -748,7 +755,6 @@ export const BillingPOS = () => {
         )}
       </div>
 
-      {/* Quick Add Customer Modal */}
       <Modal 
         isOpen={isAddCustomerOpen} 
         onClose={() => setIsAddCustomerOpen(false)}
@@ -816,7 +822,6 @@ export const BillingPOS = () => {
         </form>
       </Modal>
 
-      {/* COMPREHENSIVE ADD PRODUCT MODAL */}
       <Modal 
         isOpen={isAddProductModalOpen} 
         onClose={() => setIsAddProductModalOpen(false)}
@@ -824,8 +829,6 @@ export const BillingPOS = () => {
         className="max-w-3xl"
       >
         <form onSubmit={handleQuickAddProduct} className="space-y-6">
-          
-          {/* Section: Basic Info */}
           <div>
             <h4 className="text-sm font-semibold text-text-primary mb-3">Basic Information</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -904,12 +907,9 @@ export const BillingPOS = () => {
             </div>
           </div>
 
-          {/* Section: Pricing */}
           <div className="border-t border-border pt-4">
             <h4 className="text-sm font-semibold text-text-primary mb-4">Pricing Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
-              
-              {/* Purchase Price */}
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">Purchase Price (In) <span className="text-red-500">*</span></label>
                 <div className="relative">
@@ -925,7 +925,6 @@ export const BillingPOS = () => {
                 </div>
               </div>
 
-              {/* Vendor Pricing */}
               <div className="md:col-span-2 grid grid-cols-2 gap-4">
                 <div className="col-span-2 pb-1 border-b border-border/50">
                   <span className="text-xs font-semibold text-text-primary">Vendor Pricing (B2B)</span>
@@ -958,7 +957,6 @@ export const BillingPOS = () => {
                 </div>
               </div>
 
-              {/* Customer Pricing */}
               <div className="md:col-start-2 md:col-span-2 grid grid-cols-2 gap-4 mt-2">
                 <div className="col-span-2 pb-1 border-b border-border/50">
                   <span className="text-xs font-semibold text-text-primary">Customer Pricing (B2C)</span>
@@ -1002,7 +1000,6 @@ export const BillingPOS = () => {
         </form>
       </Modal>
 
-      {/* Checkout Confirmation Modal */}
       <Modal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
@@ -1025,7 +1022,6 @@ export const BillingPOS = () => {
             </div>
           </div>
 
-          {/* Payment Type Toggle */}
           <div className="grid grid-cols-2 gap-3 p-1 bg-gray-100 rounded-lg">
               <button 
                   onClick={() => setPaymentType('Full')}
@@ -1041,8 +1037,49 @@ export const BillingPOS = () => {
               </button>
           </div>
 
-          {/* Partial Payment Input */}
-          {paymentType === 'Partial' && (
+          {/* Mixed Payment Breakdown Inputs */}
+          {paymentMode === 'Mixed' && (
+              <div className="space-y-3 animate-in fade-in slide-in-from-top-2 bg-gray-50 p-3 rounded-lg border border-border">
+                  <h4 className="text-sm font-semibold text-text-primary mb-2">Mixed Payment Breakdown</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                      <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1">Cash Amount</label>
+                          <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">₹</span>
+                              <input 
+                                  type="number" 
+                                  className="w-full pl-7 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                  value={mixedCashAmount}
+                                  onChange={e => handleMixedCashChange(e.target.value)}
+                                  placeholder="0.00"
+                              />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1">Online / UPI Amount</label>
+                          <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">₹</span>
+                              <input 
+                                  type="number" 
+                                  className="w-full pl-7 pr-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                  value={mixedOnlineAmount}
+                                  onChange={e => handleMixedOnlineChange(e.target.value)}
+                                  placeholder="0.00"
+                              />
+                          </div>
+                      </div>
+                  </div>
+                  {paymentType === 'Partial' && (
+                      <div className="flex justify-between items-center p-2 bg-red-50 border border-red-100 rounded-md text-red-700 mt-2">
+                          <span className="text-sm font-medium">Balance Due</span>
+                          <span className="font-bold">{formatCurrency(Math.max(0, cartTotal - ((parseFloat(mixedCashAmount)||0) + (parseFloat(mixedOnlineAmount)||0))))}</span>
+                      </div>
+                  )}
+              </div>
+          )}
+
+          {/* Standard Partial Payment Input (Non-Mixed) */}
+          {paymentType === 'Partial' && paymentMode !== 'Mixed' && (
               <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                   <div>
                       <label className="block text-sm font-medium text-text-primary mb-1">Amount Paid Now</label>
@@ -1065,7 +1102,6 @@ export const BillingPOS = () => {
               </div>
           )}
 
-          {/* Total Summary */}
           <div className="flex justify-between items-center pt-2 border-t border-border">
               <span className="text-text-primary font-medium text-lg">Total Bill Amount</span>
               <span className="font-bold text-primary text-2xl">{formatCurrency(cartTotal)}</span>

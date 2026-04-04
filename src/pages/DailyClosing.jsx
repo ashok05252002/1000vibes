@@ -24,9 +24,20 @@ export const DailyClosingPage = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   // --- Calculations ---
-  const todaysInvoices = invoices.filter(inv => inv.date === today && inv.status === 'Paid');
-  const cashSales = todaysInvoices.filter(inv => inv.paymentMode === 'Cash').reduce((sum, inv) => sum + inv.amount, 0);
-  const onlineSales = todaysInvoices.filter(inv => inv.paymentMode !== 'Cash').reduce((sum, inv) => sum + inv.amount, 0);
+  // Include all invoices from today that have some paid amount
+  const todaysInvoices = invoices.filter(inv => inv.date === today && inv.paidAmount > 0);
+  
+  const cashSales = todaysInvoices.reduce((sum, inv) => {
+      if (inv.paymentMode === 'Cash') return sum + inv.paidAmount;
+      if (inv.paymentMode === 'Mixed' && inv.mixedBreakdown) return sum + inv.mixedBreakdown.cash;
+      return sum;
+  }, 0);
+
+  const onlineSales = todaysInvoices.reduce((sum, inv) => {
+      if (inv.paymentMode !== 'Cash' && inv.paymentMode !== 'Mixed') return sum + inv.paidAmount;
+      if (inv.paymentMode === 'Mixed' && inv.mixedBreakdown) return sum + inv.mixedBreakdown.online;
+      return sum;
+  }, 0);
   
   // Filter expenses to only include those that should reflect in daily closing
   const todaysExpenses = expenses.filter(exp => exp.date === today && exp.reflectInDailyClosing !== false);
