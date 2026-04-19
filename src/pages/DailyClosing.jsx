@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Save, AlertCircle, CheckCircle, DollarSign, CreditCard, TrendingDown, History, Calendar, Lock } from 'lucide-react';
+import { Calculator, Save, AlertCircle, CheckCircle, DollarSign, CreditCard, TrendingDown, History, Calendar, Lock, Plus, Minus, Equal, Wallet } from 'lucide-react';
 import { faker } from '@faker-js/faker';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,7 +10,7 @@ import { useInventory } from '../context/InventoryContext';
 
 export const DailyClosingPage = () => {
   const navigate = useNavigate();
-  const { invoices, expenses, addDailyClosing, dailyClosings } = useInventory();
+  const { transactions, expenses, addDailyClosing, dailyClosings } = useInventory();
   const [activeTab, setActiveTab] = useState('closing'); // 'closing' or 'history'
   const today = new Date().toISOString().split('T')[0];
 
@@ -23,28 +23,46 @@ export const DailyClosingPage = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // --- Calculations ---
-  // Include all invoices from today that have some paid amount
-  const todaysInvoices = invoices.filter(inv => inv.date === today && inv.paidAmount > 0);
-  
-  const cashSales = todaysInvoices.reduce((sum, inv) => {
-      if (inv.paymentMode === 'Cash') return sum + inv.paidAmount;
-      if (inv.paymentMode === 'Mixed' && inv.mixedBreakdown) return sum + inv.mixedBreakdown.cash;
-      return sum;
-  }, 0);
+  // --- Calculations based on Transactions Ledger ---
+  const todayTxs = transactions.filter(tx => tx.date === today);
 
-  const onlineSales = todaysInvoices.reduce((sum, inv) => {
-      if (inv.paymentMode !== 'Cash' && inv.paymentMode !== 'Mixed') return sum + inv.paidAmount;
-      if (inv.paymentMode === 'Mixed' && inv.mixedBreakdown) return sum + inv.mixedBreakdown.online;
-      return sum;
-  }, 0);
+  // 1. Direct Sales (Cash & Online)
+  const cashSales = todayTxs
+    .filter(tx => tx.type === 'Income' && tx.category === 'Sales' && tx.mode === 'Cash')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const onlineSales = todayTxs
+    .filter(tx => tx.type === 'Income' && tx.category === 'Sales' && tx.mode !== 'Cash')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  // 2. Pending Bills Collected (Cash & Online)
+  const cashCreditCollections = todayTxs
+    .filter(tx => tx.type === 'Income' && tx.category === 'Credit Receipt' && tx.mode === 'Cash')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const onlineCreditCollections = todayTxs
+    .filter(tx => tx.type === 'Income' && tx.category === 'Credit Receipt' && tx.mode !== 'Cash')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  // 3. Expenses
+  // Get all cash expenses from transactions (includes PO payments, refunds, and regular expenses)
+  let cashExpenses = todayTxs
+    .filter(tx => tx.type === 'Expense' && tx.mode === 'Cash')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  // Subtract expenses that explicitly should NOT reflect in daily closing
+  const nonReflectingCashExpenses = expenses
+    .filter(exp => exp.date === today && exp.paymentMode === 'Cash' && exp.reflectInDailyClosing === false)
+    .reduce((sum, exp) => sum + exp.amount, 0);
   
-  // Filter expenses to only include those that should reflect in daily closing
-  const todaysExpenses = expenses.filter(exp => exp.date === today && exp.reflectInDailyClosing !== false);
-  const cashExpenses = todaysExpenses.filter(exp => exp.paymentMode === 'Cash').reduce((sum, exp) => sum + exp.amount, 0);
-  
+  cashExpenses -= nonReflectingCashExpenses;
+
+  // 4. Totals
+  const totalCashIn = cashSales + cashCreditCollections;
+  const totalOnlineIn = onlineSales + onlineCreditCollections;
+
   const opening = parseFloat(openingBalance) || 0;
-  const expectedCash = opening + cashSales - cashExpenses;
+  const expectedCash = opening + totalCashIn - cashExpenses;
   const actual = parseFloat(actualCash) || 0;
   const discrepancy = actual - expectedCash;
 
@@ -70,7 +88,9 @@ export const DailyClosingPage = () => {
       date: today,
       openingBalance: opening,
       cashSales,
+      cashCreditCollections,
       onlineSales,
+      onlineCreditCollections,
       cashExpenses,
       expectedCash,
       actualCash: actual,
@@ -104,7 +124,7 @@ export const DailyClosingPage = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-10">
+    <div className="max-w-7xl mx-auto space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Daily Closing (EOD)</h1>
@@ -142,18 +162,19 @@ export const DailyClosingPage = () => {
 
       {/* Tab 1: Perform Closing */}
       {activeTab === 'closing' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
+            
+            {/* Step 1: Opening Balance */}
             <Card className="p-6 border-l-4 border-l-blue-500">
               <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">1</div>
-                  Opening Balance
+                  Cash in Counter (Start of Day)
                 </div>
                 {isOpeningSaved && <Lock size={16} className="text-green-600" />}
               </h3>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Cash in Counter (Start of Day)</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">₹</span>
@@ -162,7 +183,7 @@ export const DailyClosingPage = () => {
                       value={openingBalance}
                       onChange={(e) => setOpeningBalance(e.target.value)}
                       disabled={isOpeningSaved}
-                      className={`w-full pl-7 pr-4 py-2 border rounded-md outline-none transition-colors ${
+                      className={`w-full pl-7 pr-4 py-3 text-lg font-medium border rounded-md outline-none transition-colors ${
                         isOpeningSaved 
                           ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed' 
                           : 'border-border focus:ring-2 focus:ring-blue-500/20'
@@ -171,7 +192,7 @@ export const DailyClosingPage = () => {
                     />
                   </div>
                   {!isOpeningSaved && (
-                    <Button onClick={handleSaveOpeningClick} className="shrink-0">Save</Button>
+                    <Button onClick={handleSaveOpeningClick} className="shrink-0 px-6">Save</Button>
                   )}
                 </div>
                 {isOpeningSaved && (
@@ -182,81 +203,140 @@ export const DailyClosingPage = () => {
               </div>
             </Card>
 
+            {/* Step 2: System Summary */}
             <Card className="p-6 bg-gray-50">
               <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs">2</div>
                 System Summary (Today)
               </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-border">
-                  <div className="flex items-center gap-2 text-green-700">
-                    <DollarSign size={16} />
-                    <span className="text-sm font-medium">Cash Sales Collected</span>
+              <div className="space-y-4">
+                
+                {/* Cash Transactions */}
+                <div className="p-4 bg-white rounded-lg border border-border shadow-sm">
+                  <h4 className="text-sm font-bold text-text-primary uppercase mb-3 flex items-center gap-2 border-b border-border pb-2">
+                    <DollarSign size={16} className="text-green-600"/> Cash Transactions
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-text-secondary">Direct Cash Sales</span>
+                      <span className="font-medium text-text-primary">{formatCurrency(cashSales)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-text-secondary">Pending Cash Received (Old Bills)</span>
+                      <span className="font-medium text-text-primary">{formatCurrency(cashCreditCollections)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-base font-bold bg-green-50 p-2 rounded text-green-800">
+                      <span>Total Cash Received</span>
+                      <span>+ {formatCurrency(totalCashIn)}</span>
+                    </div>
                   </div>
-                  <span className="font-bold text-green-700">+ {formatCurrency(cashSales)}</span>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-border opacity-75">
-                  <div className="flex items-center gap-2 text-text-secondary">
-                    <CreditCard size={16} />
-                    <span className="text-sm">Online/Bank Sales</span>
+
+                {/* Online Transactions */}
+                <div className="p-4 bg-white rounded-lg border border-border shadow-sm">
+                  <h4 className="text-sm font-bold text-text-primary uppercase mb-3 flex items-center gap-2 border-b border-border pb-2">
+                    <CreditCard size={16} className="text-blue-600"/> Online / Bank Transactions
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-text-secondary">Direct Online Sales</span>
+                      <span className="font-medium text-text-primary">{formatCurrency(onlineSales)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-text-secondary">Pending Account Received (Old Bills)</span>
+                      <span className="font-medium text-text-primary">{formatCurrency(onlineCreditCollections)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-base font-bold bg-blue-50 p-2 rounded text-blue-800">
+                      <span>Total Online Received</span>
+                      <span>+ {formatCurrency(totalOnlineIn)}</span>
+                    </div>
                   </div>
-                  <span className="font-medium text-text-primary">{formatCurrency(onlineSales)}</span>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-border">
-                  <div className="flex items-center gap-2 text-red-600">
-                    <TrendingDown size={16} />
-                    <span className="text-sm font-medium">Cash Expenses Paid</span>
+
+                {/* Expenses */}
+                <div className="p-4 bg-white rounded-lg border border-red-200 shadow-sm mt-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2 text-red-600 font-bold">
+                      <TrendingDown size={16} />
+                      <span>Cash Expenses (Paid from Counter)</span>
+                    </div>
+                    <span className="font-bold text-red-600 text-lg">- {formatCurrency(cashExpenses)}</span>
                   </div>
-                  <span className="font-bold text-red-600">- {formatCurrency(cashExpenses)}</span>
                 </div>
+
               </div>
             </Card>
           </div>
 
           <div className="space-y-6">
+            {/* Step 3: Closing & Reconciliation */}
             <Card className="p-6 border-l-4 border-l-primary h-full flex flex-col">
               <h3 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs">3</div>
                 Closing & Reconciliation
               </h3>
+              
               <div className="space-y-6 flex-1">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                  <p className="text-sm text-blue-800 mb-1">Expected Cash Balance</p>
-                  <p className="text-2xl font-bold text-blue-900">{formatCurrency(expectedCash)}</p>
-                  <p className="text-xs text-blue-600 mt-1">Opening + Cash Sales - Cash Expenses</p>
+                {/* Expected Cash Calculation Box */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-border">
+                  <p className="text-sm font-semibold text-text-primary mb-3">Expected Cash Calculation:</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span>Opening Balance</span>
+                      <span className="font-medium text-text-primary">{formatCurrency(opening)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span className="flex items-center gap-1"><Plus size={12}/> Total Cash Received</span>
+                      <span className="font-medium text-green-600">{formatCurrency(totalCashIn)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-text-secondary border-b border-border pb-2">
+                      <span className="flex items-center gap-1"><Minus size={12}/> Cash Expenses</span>
+                      <span className="font-medium text-red-600">{formatCurrency(cashExpenses)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="font-bold text-primary flex items-center gap-1"><Equal size={14}/> Expected Cash in Drawer</span>
+                      <span className="font-bold text-primary text-xl">{formatCurrency(expectedCash)}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Actual Cash Input */}
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Actual Cash Count (End of Day)</label>
+                  <label className="block text-sm font-bold text-text-primary mb-2">Actual Cash Count (Enter physical cash)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">₹</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary text-lg">₹</span>
                     <input 
                       type="number" 
                       value={actualCash}
                       onChange={(e) => setActualCash(e.target.value)}
                       disabled={!isOpeningSaved}
-                      className={`w-full pl-7 pr-4 py-3 border-2 rounded-md outline-none text-lg font-medium transition-colors ${
+                      className={`w-full pl-9 pr-4 py-4 border-2 rounded-lg outline-none text-2xl font-bold transition-colors ${
                         !isOpeningSaved 
                           ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
-                          : 'border-primary/20 focus:border-primary'
+                          : 'border-primary/30 focus:border-primary bg-white'
                       }`}
                       placeholder="0.00"
                     />
                   </div>
                   {!isOpeningSaved && (
-                    <p className="text-xs text-red-500 mt-1">Please save the Opening Balance first.</p>
+                    <p className="text-xs text-red-500 mt-2">Please save the Opening Balance first.</p>
                   )}
                 </div>
+
+                {/* Discrepancy Alert */}
                 {actualCash && isOpeningSaved && (
-                  <div className={`p-4 rounded-lg border flex items-start gap-3 ${discrepancy === 0 ? 'bg-green-50 border-green-100 text-green-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
-                    {discrepancy === 0 ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                  <div className={`p-4 rounded-lg border flex items-start gap-3 ${discrepancy === 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                    {discrepancy === 0 ? <CheckCircle size={24} /> : <AlertCircle size={24} />}
                     <div>
-                      <p className="font-bold text-lg">{discrepancy > 0 ? '+' : ''}{formatCurrency(discrepancy)}</p>
-                      <p className="text-sm">{discrepancy === 0 ? 'Perfect Match' : discrepancy > 0 ? 'Excess Cash' : 'Shortage'}</p>
+                      <p className="font-bold text-xl">{discrepancy > 0 ? '+' : ''}{formatCurrency(discrepancy)}</p>
+                      <p className="text-sm font-medium">{discrepancy === 0 ? 'Perfect Match - Accounts are balanced' : discrepancy > 0 ? 'Excess Cash in Drawer' : 'Shortage in Drawer'}</p>
                     </div>
                   </div>
                 )}
+
+                {/* Notes */}
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Notes / Remarks</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">Notes / Remarks (Required if discrepancy)</label>
                   <textarea 
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -267,16 +347,17 @@ export const DailyClosingPage = () => {
                         : 'border-border focus:ring-2 focus:ring-primary/20'
                     }`}
                     rows={3}
-                    placeholder="Enter reason for discrepancy..."
+                    placeholder="Enter reason for discrepancy or general notes..."
                   />
                 </div>
               </div>
+
               <div className="mt-8 pt-4 border-t border-border">
                 <Button 
-                  className="w-full py-3 text-base" 
+                  className="w-full py-4 text-lg font-bold shadow-lg" 
                   icon={Save} 
                   onClick={handleSubmit}
-                  disabled={!isOpeningSaved || !actualCash}
+                  disabled={!isOpeningSaved || !actualCash || (discrepancy !== 0 && !notes.trim())}
                 >
                   Close Day & Save Report
                 </Button>
@@ -293,32 +374,69 @@ export const DailyClosingPage = () => {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-text-secondary bg-gray-50 uppercase border-b border-border">
                 <tr>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3 text-right">Opening</th>
-                  <th className="px-6 py-3 text-right">Cash Sales</th>
-                  <th className="px-6 py-3 text-right">Expenses</th>
-                  <th className="px-6 py-3 text-right">Actual Cash</th>
-                  <th className="px-6 py-3 text-right">Discrepancy</th>
-                  <th className="px-6 py-3">Closed By</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Opening Cash</th>
+                  <th className="px-4 py-3 text-right border-l border-border bg-green-50/30">Cash Received</th>
+                  <th className="px-4 py-3 text-right border-l border-border bg-blue-50/30">Online Received</th>
+                  <th className="px-4 py-3 text-right border-l border-border bg-purple-50/30">Total Collection</th>
+                  <th className="px-4 py-3 text-right border-l border-border text-red-600">Cash Expenses</th>
+                  <th className="px-4 py-3 text-right border-l border-border">Actual Cash</th>
+                  <th className="px-4 py-3 text-right">Discrepancy</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {dailyClosings.map((report) => (
-                  <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-text-primary font-medium whitespace-nowrap flex items-center gap-2">
-                      <Calendar size={14} className="text-text-secondary" />
-                      {report.date}
-                    </td>
-                    <td className="px-6 py-4 text-right text-text-secondary">{formatCurrency(report.openingBalance)}</td>
-                    <td className="px-6 py-4 text-right text-green-600 font-medium">+{formatCurrency(report.cashSales)}</td>
-                    <td className="px-6 py-4 text-right text-red-600 font-medium">-{formatCurrency(report.cashExpenses)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-text-primary">{formatCurrency(report.actualCash)}</td>
-                    <td className={`px-6 py-4 text-right font-medium ${report.discrepancy !== 0 ? 'text-red-500' : 'text-green-600'}`}>
-                      {formatCurrency(report.discrepancy)}
-                    </td>
-                    <td className="px-6 py-4 text-text-secondary text-xs">{report.closedBy}</td>
-                  </tr>
-                ))}
+                {dailyClosings.map((report) => {
+                  const totalCashIn = report.cashSales + (report.cashCreditCollections || 0);
+                  const totalOnlineIn = (report.onlineSales || 0) + (report.onlineCreditCollections || 0);
+                  const grandTotal = totalCashIn + totalOnlineIn;
+                  
+                  return (
+                    <tr key={report.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 text-text-primary font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-text-secondary" />
+                          {report.date}
+                        </div>
+                        <div className="text-[10px] text-text-muted mt-1 font-normal">By: {report.closedBy}</div>
+                      </td>
+                      
+                      <td className="px-4 py-4 text-right font-medium text-text-primary">
+                        {formatCurrency(report.openingBalance)}
+                      </td>
+                      
+                      {/* Cash Breakdown */}
+                      <td className="px-4 py-4 text-right border-l border-border bg-green-50/10">
+                        <div className="text-green-700 font-bold text-base">{formatCurrency(totalCashIn)}</div>
+                        <div className="text-[10px] text-text-secondary mt-1">Sales: {formatCurrency(report.cashSales)}</div>
+                        <div className="text-[10px] text-text-secondary">Pending: {formatCurrency(report.cashCreditCollections || 0)}</div>
+                      </td>
+
+                      {/* Online Breakdown */}
+                      <td className="px-4 py-4 text-right border-l border-border bg-blue-50/10">
+                        <div className="text-blue-700 font-bold text-base">{formatCurrency(totalOnlineIn)}</div>
+                        <div className="text-[10px] text-text-secondary mt-1">Sales: {formatCurrency(report.onlineSales || 0)}</div>
+                        <div className="text-[10px] text-text-secondary">Pending: {formatCurrency(report.onlineCreditCollections || 0)}</div>
+                      </td>
+
+                      {/* Total Collection */}
+                      <td className="px-4 py-4 text-right border-l border-border bg-purple-50/10">
+                        <div className="text-purple-700 font-bold text-base">{formatCurrency(grandTotal)}</div>
+                      </td>
+                      
+                      <td className="px-4 py-4 text-right text-red-600 font-bold border-l border-border">
+                        -{formatCurrency(report.cashExpenses)}
+                      </td>
+                      
+                      <td className="px-4 py-4 text-right font-bold text-text-primary text-base border-l border-border">
+                        {formatCurrency(report.actualCash)}
+                      </td>
+                      
+                      <td className={`px-4 py-4 text-right font-bold ${report.discrepancy !== 0 ? 'text-red-500' : 'text-green-600'}`}>
+                        {report.discrepancy > 0 ? '+' : ''}{formatCurrency(report.discrepancy)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
