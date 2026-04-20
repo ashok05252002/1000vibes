@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { faker } from '@faker-js/faker';
-import { Plus, Search, Mail, Store, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Mail, Store, MoreHorizontal, Eye } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -10,6 +11,7 @@ import { formatCurrency } from '../lib/utils';
 import { useInventory, PRODUCT_CATEGORIES } from '../context/InventoryContext';
 
 export const DealersPage = () => {
+  const navigate = useNavigate();
   const { dealers, addDealer } = useInventory();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,7 +108,11 @@ export const DealersPage = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {paginatedDealers.map((dealer) => (
-                <tr key={dealer.id} className="hover:bg-gray-50 transition-colors group">
+                <tr 
+                  key={dealer.id} 
+                  className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                  onClick={() => navigate(`/dealers/${dealer.id}`)}
+                >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-md bg-blue-50 flex items-center justify-center text-blue-600 font-medium group-hover:bg-blue-100 transition-colors">
@@ -136,9 +142,18 @@ export const DealersPage = () => {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-1.5 text-text-secondary hover:bg-gray-100 rounded-md">
-                      <MoreHorizontal size={18} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                      <button 
+                        className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded-md" 
+                        title="View Details"
+                        onClick={() => navigate(`/dealers/${dealer.id}`)}
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button className="p-1.5 text-text-secondary hover:bg-gray-100 rounded-md">
+                        <MoreHorizontal size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

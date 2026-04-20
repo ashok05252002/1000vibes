@@ -9,6 +9,7 @@ import { CustomerDetailsPage } from './pages/CustomerDetails';
 import { VendorsPage } from './pages/Vendors';
 import { VendorDetailsPage } from './pages/VendorDetails'; 
 import { DealersPage } from './pages/Dealers'; 
+import { DealerDetailsPage } from './pages/DealerDetails';
 import { PurchaseOrdersPage } from './pages/PurchaseOrders'; 
 import { AddPurchaseOrderPage } from './pages/AddPurchaseOrder'; 
 import { PurchaseOrderViewPage } from './pages/PurchaseOrderView'; 
@@ -55,6 +56,7 @@ function App() {
 
             {/* Dealer Routes */}
             <Route path="dealers" element={<DealersPage />} />
+            <Route path="dealers/:id" element={<DealerDetailsPage />} />
             
             {/* Purchase Order Routes */}
             <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
